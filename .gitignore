@@ -1,0 +1,25 @@
+## Xcode user data
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+## Build artifacts
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Swift Package Manager
+.build/
+
+## CocoaPods (if used)
+Pods/
+
+## Carthage (if used)
+Carthage/Build/
+
+## Misc
+.DS_Store
