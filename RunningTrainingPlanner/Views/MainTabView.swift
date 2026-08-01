@@ -8,21 +8,20 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
+    @State private var selectedTab = 1
 
     var body: some View {
         TabView(selection: $selectedTab) {
             // Main view
-            CreatePlan()
+            Text("Home Page")
                 .tabItem {
                     Label("Home", systemImage: "house")
                 }
                 .tag(0)
             
-            // Temporary text placeholder for second Tab
-            Text("New Workout Page")
+            SelectActivityDateView()
                 .tabItem {
-                    Label("New Workout", systemImage: "plus")
+                    Label("New Activity", systemImage: "plus")
                 }
                 .tag(1)
             

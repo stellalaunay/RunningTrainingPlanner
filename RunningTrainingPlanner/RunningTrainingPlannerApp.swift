@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct RunningTrainingPlannerApp: App {
@@ -13,5 +14,6 @@ struct RunningTrainingPlannerApp: App {
         WindowGroup {
             MainTabView()
         }
+        .modelContainer(for: Activity.self)
     }
 }
