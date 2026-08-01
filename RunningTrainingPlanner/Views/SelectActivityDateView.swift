@@ -35,7 +35,7 @@ struct SelectActivityDateView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToNextPage) {
-            SelectActivityTypeView(date: selectedDate)
+            CreateActivityView(date: selectedDate)
         }
         
     }
