@@ -79,8 +79,8 @@ struct ActivityDetailCard: View {
                     .font(.subheadline)
             }
 
-            if activity.type == .run, let paceMin = activity.paceMinutes, let paceSec = activity.paceSeconds, let unit = activity.distanceUnit {
-                Text("Pace: \(paceMin):\(String(format: "%02d", paceSec)) min/\(unit.rawValue)")
+            if activity.type == .run, let pace = activity.pace, let unit = activity.distanceUnit {
+                Text("Pace: \(pace / 60):\(String(format: "%02d", pace % 60)) min/\(unit.rawValue)")
                     .font(.subheadline)
             }
 

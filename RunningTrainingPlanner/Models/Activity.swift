@@ -41,11 +41,11 @@ final class Activity {
     var notes: String?
     var distance: Double?
     var distanceUnit: DistanceUnit?
-    var paceMinutes: Int?
-    var paceSeconds: Int?
+    var pace: Int?
     var duration: Int?
+    var plan: Plan?
 
-    init(name: String, date: Date, time: Date? = nil, type: ActivityType, notes: String? = nil, distance: Double? = nil, distanceUnit: DistanceUnit? = nil, paceMinutes: Int? = nil, paceSeconds: Int? = nil, duration: Int? = nil) {
+    init(name: String, date: Date, time: Date? = nil, type: ActivityType, notes: String? = nil, distance: Double? = nil, distanceUnit: DistanceUnit? = nil, pace: Int? = nil, duration: Int? = nil) {
         self.name = name
         self.date = date
         self.time = time
@@ -53,11 +53,7 @@ final class Activity {
         self.notes = notes
         self.distance = distance
         self.distanceUnit = distanceUnit
-        self.paceMinutes = paceMinutes
-        self.paceSeconds = paceSeconds
+        self.pace = pace
         self.duration = duration
     }
-    
-
-    
 }
