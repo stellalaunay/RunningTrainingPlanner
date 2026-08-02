@@ -21,7 +21,9 @@ struct HomeView: View {
     }
 
     private func activitiesFor(date: Date) -> [Activity] {
-        activities.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+        activities
+            .filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+            .sorted { ($0.time ?? .distantFuture) < ($1.time ?? .distantFuture) }
     }
 
     var body: some View {
@@ -29,7 +31,10 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     ForEach(weekDates, id: \.self) { date in
-                        DayRowView(date: date, activities: activitiesFor(date: date))
+                        NavigationLink(destination: DayView(date: date, activities: activitiesFor(date: date))) {
+                            DayRowView(date: date, activities: activitiesFor(date: date))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding()
@@ -90,13 +95,15 @@ struct DayRowView: View {
                 ForEach(activities) { activity in
                     HStack(spacing: 8) {
                         Image(systemName: iconFor(activity.type))
-                            .foregroundStyle(Color.accentColor)
-                        Text(activity.type.rawValue)
+                            .foregroundStyle(activity.type.color)
+                        Text(activity.name)
                             .font(.subheadline)
                         Spacer()
-                        Text(activity.time, format: .dateTime.hour().minute())
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        if let time = activity.time {
+                            Text(time, format: .dateTime.hour().minute())
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.vertical, 2)
                 }
@@ -125,13 +132,6 @@ struct DayRowView: View {
 
 #Preview {
     let container = try! ModelContainer(for: Activity.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    let calendar = Calendar.current
-    let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
-    let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
-    let six = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: Date())!
-    container.mainContext.insert(Activity(date: Date(), time: nine, type: .run))
-    container.mainContext.insert(Activity(date: Date(), time: noon, type: .strengthTraining))
-    container.mainContext.insert(Activity(date: Date(), time: six, type: .rockClimb))
     return HomeView()
         .modelContainer(container)
 }

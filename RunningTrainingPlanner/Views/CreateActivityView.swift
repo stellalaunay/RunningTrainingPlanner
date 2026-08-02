@@ -7,16 +7,16 @@
 import SwiftUI
 import SwiftData
 
-enum DistanceUnit: String, CaseIterable {
-    case km = "km"
-    case miles = "mi"
-}
-
 struct CreateActivityView: View {
     @State private var name: String = ""
     @State private var selectedType: ActivityType? = nil
     @State private var notes: String = ""
-    @State private var date: Date = Date.now
+    @State private var date: Date
+    @State private var includeTime: Bool = false
+
+    init(initialDate: Date = .now) {
+        _date = State(initialValue: initialDate)
+    }
     @State private var time: Date = Date.now
     @State private var distance: Double? = nil
     @State private var distanceUnit: DistanceUnit = .miles
@@ -40,7 +40,10 @@ struct CreateActivityView: View {
 
             Section {
                 DatePicker("Date", selection: $date, displayedComponents: .date)
-                DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                Toggle("Set time", isOn: $includeTime)
+                if includeTime {
+                    DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                }
 
                 if selectedType == .run || selectedType == .walk {
                     HStack {

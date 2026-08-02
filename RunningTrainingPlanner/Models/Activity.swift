@@ -15,18 +15,47 @@ enum ActivityType: String, Codable, CaseIterable {
     case walk = "Walk"
     case rockClimb = "Rock Climb"
     case other = "Other"
+
+    var color: Color {
+        switch self {
+        case .run:              return .orange
+        case .strengthTraining: return .blue
+        case .walk:             return .green
+        case .rockClimb:        return .purple
+        case .other:            return .gray
+        }
+    }
+}
+
+enum DistanceUnit: String, Codable, CaseIterable {
+    case km = "km"
+    case miles = "mi"
 }
 
 @Model
 final class Activity {
+    var name: String
     var date: Date
-    var time: Date
+    var time: Date?
     var type: ActivityType
+    var notes: String?
+    var distance: Double?
+    var distanceUnit: DistanceUnit?
+    var paceMinutes: Int?
+    var paceSeconds: Int?
+    var duration: Int?
 
-    init(date: Date, time: Date, type: ActivityType) {
+    init(name: String, date: Date, time: Date? = nil, type: ActivityType, notes: String? = nil, distance: Double? = nil, distanceUnit: DistanceUnit? = nil, paceMinutes: Int? = nil, paceSeconds: Int? = nil, duration: Int? = nil) {
+        self.name = name
         self.date = date
         self.time = time
         self.type = type
+        self.notes = notes
+        self.distance = distance
+        self.distanceUnit = distanceUnit
+        self.paceMinutes = paceMinutes
+        self.paceSeconds = paceSeconds
+        self.duration = duration
     }
     
 
