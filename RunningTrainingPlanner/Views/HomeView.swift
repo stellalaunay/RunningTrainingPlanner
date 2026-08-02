@@ -11,7 +11,9 @@ import SwiftData
 struct HomeView: View {
     @Query private var activities: [Activity]
     @State private var showNewActivity = false
+    @State private var showNewPlan = false
     @State private var showProfile = false
+    @State private var showAddMenu = false
 
     private var weekDates: [Date] {
         var calendar = Calendar.current
@@ -39,11 +41,57 @@ struct HomeView: View {
                 }
                 .padding()
             }
-            .navigationTitle("This Week")
+            .navigationBarTitleDisplayMode(.inline)
+            .overlay(alignment: .topLeading) {
+                if showAddMenu {
+                    ZStack(alignment: .topLeading) {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    showAddMenu = false
+                                }
+                            }
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button {
+                                withAnimation(.easeOut(duration: 0.2)) { showAddMenu = false }
+                                showNewActivity = true
+                            } label: {
+                                Text("New Activity")
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                            }
+                            Divider()
+                            Button {
+                                withAnimation(.easeOut(duration: 0.2)) { showAddMenu = false }
+                                showNewPlan = true
+                            } label: {
+                                Text("New Plan")
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                            }
+                        }
+                        .fixedSize()
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.leading, 16)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+            }
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("This Week")
+                        .font(.title)
+                        .fontWeight(.bold)
+                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                        showNewActivity = true
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showAddMenu.toggle()
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -58,6 +106,9 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $showNewActivity) {
                 CreateActivityView()
+            }
+            .navigationDestination(isPresented: $showNewPlan) {
+                NewPlanView()
             }
             .navigationDestination(isPresented: $showProfile) {
                 Text("Profile Page")
