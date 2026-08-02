@@ -14,7 +14,8 @@ struct HomeView: View {
     @State private var showProfile = false
 
     private var weekDates: [Date] {
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
         guard let interval = calendar.dateInterval(of: .weekOfYear, for: Date()) else { return [] }
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: interval.start) }
     }
@@ -50,8 +51,8 @@ struct HomeView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showNewActivity) {
-                SelectActivityDateView()
+            .navigationDestination(isPresented: $showNewActivity) {
+                CreateActivityView()
             }
             .navigationDestination(isPresented: $showProfile) {
                 Text("Profile Page")
@@ -92,6 +93,10 @@ struct DayRowView: View {
                             .foregroundStyle(Color.accentColor)
                         Text(activity.type.rawValue)
                             .font(.subheadline)
+                        Spacer()
+                        Text(activity.time, format: .dateTime.hour().minute())
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
                 }
@@ -112,13 +117,21 @@ struct DayRowView: View {
         case .run: return "figure.run"
         case .strengthTraining: return "dumbbell"
         case .walk: return "figure.walk"
-        case .bike: return "bicycle"
+        case .rockClimb: return "figure.climbing"
         case .other: return "star"
         }
     }
 }
 
 #Preview {
-    HomeView()
-        .modelContainer(for: Activity.self, inMemory: true)
+    let container = try! ModelContainer(for: Activity.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let calendar = Calendar.current
+    let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
+    let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+    let six = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: Date())!
+    container.mainContext.insert(Activity(date: Date(), time: nine, type: .run))
+    container.mainContext.insert(Activity(date: Date(), time: noon, type: .strengthTraining))
+    container.mainContext.insert(Activity(date: Date(), time: six, type: .rockClimb))
+    return HomeView()
+        .modelContainer(container)
 }
