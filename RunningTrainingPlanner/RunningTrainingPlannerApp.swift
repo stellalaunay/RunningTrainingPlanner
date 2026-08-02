@@ -12,7 +12,7 @@ import SwiftData
 struct RunningTrainingPlannerApp: App {
     var body: some Scene {
         WindowGroup {
-            MainTabView()
+            HomeView()
         }
         .modelContainer(for: Activity.self)
     }
