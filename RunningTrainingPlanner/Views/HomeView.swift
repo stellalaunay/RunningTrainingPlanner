@@ -9,19 +9,23 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
+    // @Query fetches all activities from SwiftData and keeps the list in sync with any changes
     @Query private var activities: [Activity]
     @State private var showNewActivity = false
     @State private var showNewPlan = false
     @State private var showProfile = false
     @State private var showAddMenu = false
 
+    // Generates the 7 dates for the current week, starting on Monday
     private var weekDates: [Date] {
         var calendar = Calendar.current
-        calendar.firstWeekday = 2
+        calendar.firstWeekday = 2 // 2 = Monday
         guard let interval = calendar.dateInterval(of: .weekOfYear, for: Date()) else { return [] }
+        // Adds 0–6 days to the start of the week to produce each day
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: interval.start) }
     }
 
+    // Returns activities for a given day, sorted by time (no-time activities go last)
     private func activitiesFor(date: Date) -> [Activity] {
         activities
             .filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
@@ -30,21 +34,25 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
+            // Weekly schedule — one card per day
             ScrollView {
                 VStack(spacing: 12) {
                     ForEach(weekDates, id: \.self) { date in
+                        // Tapping a card navigates to DayView
                         NavigationLink(destination: DayView(date: date, activities: activitiesFor(date: date))) {
                             DayRowView(date: date, activities: activitiesFor(date: date))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plain) // prevents the NavigationLink from applying its own blue tint
                     }
                 }
                 .padding()
             }
             .navigationBarTitleDisplayMode(.inline)
+            // Custom dropdown menu — shown when the + button is tapped
             .overlay(alignment: .topLeading) {
                 if showAddMenu {
                     ZStack(alignment: .topLeading) {
+                        // Invisible full-screen tap area — tapping outside the menu closes it
                         Color.clear
                             .contentShape(Rectangle())
                             .ignoresSafeArea()
@@ -53,6 +61,7 @@ struct HomeView: View {
                                     showAddMenu = false
                                 }
                             }
+                        // Menu container
                         VStack(alignment: .leading, spacing: 0) {
                             Button {
                                 withAnimation(.easeOut(duration: 0.2)) { showAddMenu = false }
@@ -72,21 +81,23 @@ struct HomeView: View {
                                     .padding(.vertical, 12)
                             }
                         }
-                        .fixedSize()
+                        .fixedSize() // shrinks the container to fit its content instead of expanding to fill the screen
                         .background(Color(.systemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .padding(.leading, 16)
                         .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(.move(edge: .top).combined(with: .opacity)) // slides down + fades in when appearing
                     }
                 }
             }
             .toolbar {
+                // "This Week" title centered in the nav bar
                 ToolbarItem(placement: .principal) {
                     Text("This Week")
                         .font(.title)
                         .fontWeight(.bold)
                 }
+                // + button on the left — toggles the dropdown menu
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         withAnimation(.easeOut(duration: 0.2)) {
@@ -96,6 +107,7 @@ struct HomeView: View {
                         Image(systemName: "plus")
                     }
                 }
+                // Profile button on the right (placeholder)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showProfile = true
@@ -117,10 +129,12 @@ struct HomeView: View {
     }
 }
 
+// Row card for a single day in the weekly schedule
 struct DayRowView: View {
     let date: Date
     let activities: [Activity]
 
+    // True if this card represents today
     private var isToday: Bool {
         Calendar.current.isDateInToday(date)
     }
@@ -130,7 +144,7 @@ struct DayRowView: View {
             HStack {
                 Text(date, format: .dateTime.weekday(.wide))
                     .font(.headline)
-                    .fontWeight(isToday ? .bold : .regular)
+                    .fontWeight(isToday ? .bold : .regular) // today's name is bold
                 Text(date, format: .dateTime.month(.abbreviated).day())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -162,14 +176,17 @@ struct DayRowView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Today's card gets a subtle accent tint; other days use the standard secondary background
         .background(isToday ? Color.accentColor.opacity(0.08) : Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        // Today's card also gets a visible border
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isToday ? Color.accentColor : Color.clear, lineWidth: 1.5)
         )
     }
 
+    // Maps each activity type to its SF Symbol icon name
     private func iconFor(_ type: ActivityType) -> String {
         switch type {
         case .run: return "figure.run"
