@@ -29,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		2E5D21843021740700977AD6 /* ColorPalettes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPalettes.swift; sourceTree = "<group>"; };
+		2E5D2187302193C800977AD6 /* WeekNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekNavigator.swift; sourceTree = "<group>"; };
 		2EC30BC030196558007D5D79 /* RunningTrainingPlanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RunningTrainingPlanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EC30BCD30196559007D5D79 /* RunningTrainingPlannerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunningTrainingPlannerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EC30BD730196559007D5D79 /* RunningTrainingPlannerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunningTrainingPlannerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -77,6 +78,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2E5D2186302193C000977AD6 /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				2E5D2187302193C800977AD6 /* WeekNavigator.swift */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
 		2EC30BB730196558007D5D79 = {
 			isa = PBXGroup;
 			children = (
@@ -85,6 +94,7 @@
 				2EC30BDA30196559007D5D79 /* RunningTrainingPlannerUITests */,
 				2EC30BC130196558007D5D79 /* Products */,
 				2E5D21843021740700977AD6 /* ColorPalettes.swift */,
+				2E5D2186302193C000977AD6 /* Helpers */,
 			);
 			sourceTree = "<group>";
 		};

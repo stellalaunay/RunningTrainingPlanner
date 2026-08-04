@@ -18,25 +18,7 @@ struct HomeView: View {
     // 0 = this week, -1 = last week, +1 = next week, etc.
     @State private var weekOffset: Int = 0
 
-    // Generates the 7 dates for the displayed week, starting on Monday
-    private var weekDates: [Date] {
-        var calendar = Calendar.current
-        calendar.firstWeekday = 2 // 2 = Monday
-        // Shift the base date by weekOffset weeks to get the target week
-        let baseDate = calendar.date(byAdding: .weekOfYear, value: weekOffset, to: Date()) ?? Date()
-        guard let interval = calendar.dateInterval(of: .weekOfYear, for: baseDate) else { return [] }
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: interval.start) }
-    }
-
-    // "This Week" for the current week; "Week of Jul 27 - Aug 2" for all other weeks
-    private var weekTitle: String {
-        guard weekOffset != 0, let first = weekDates.first, let last = weekDates.last else {
-            return "This Week"
-        }
-        let firstStr = first.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
-        let lastStr = last.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
-        return "\(firstStr) - \(lastStr)"
-    }
+    private var week: WeekNavigator { WeekNavigator(offset: weekOffset) }
 
     // Returns activities for a given day, sorted by time (no-time activities go last)
     private func activitiesFor(date: Date) -> [Activity] {
@@ -59,7 +41,7 @@ struct HomeView: View {
                                 .background(Circle().fill(Color.appAccent.opacity(0.25)))
                         }
                         // Fixed width so the arrows don't shift between "This Week" and date ranges
-                        Text(weekTitle)
+                        Text(week.title)
                             .font(.title)
                             .fontWeight(.bold)
                             .lineLimit(1)
@@ -74,7 +56,7 @@ struct HomeView: View {
                     .foregroundStyle(.primary)
                     .padding(.bottom, 4)
 
-                    ForEach(weekDates, id: \.self) { date in
+                    ForEach(week.dates, id: \.self) { date in
                         // Tapping a card navigates to DayView
                         NavigationLink(destination: DayView(date: date, activities: activitiesFor(date: date))) {
                             DayRowView(date: date, activities: activitiesFor(date: date))
