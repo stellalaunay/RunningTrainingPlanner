@@ -3,15 +3,18 @@
 //  RunningTrainingPlanner
 //
 
+import SwiftUI
 import SwiftData
-import Foundation
 
 @Model
 final class Plan {
+    var planId: UUID = UUID()
+    var userId: UUID?               // FK for backend — mirrors the user relationship below
     var name: String
     var distance: Double
     var raceDate: Date
     var goalTimeSeconds: Int?
+    var user: User?                 // SwiftData relationship — back-reference to User.plans
     @Relationship(deleteRule: .cascade, inverse: \Activity.plan)
     var activities: [Activity] = []
 

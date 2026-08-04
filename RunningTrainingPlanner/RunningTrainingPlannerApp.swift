@@ -14,6 +14,6 @@ struct RunningTrainingPlannerApp: App {
         WindowGroup {
             HomeView()
         }
-        .modelContainer(for: [Activity.self, Plan.self])
+        .modelContainer(for: [Activity.self, Plan.self, User.self])
     }
 }

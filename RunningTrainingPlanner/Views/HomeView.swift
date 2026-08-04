@@ -15,14 +15,27 @@ struct HomeView: View {
     @State private var showNewPlan = false
     @State private var showProfile = false
     @State private var showAddMenu = false
+    // 0 = this week, -1 = last week, +1 = next week, etc.
+    @State private var weekOffset: Int = 0
 
-    // Generates the 7 dates for the current week, starting on Monday
+    // Generates the 7 dates for the displayed week, starting on Monday
     private var weekDates: [Date] {
         var calendar = Calendar.current
         calendar.firstWeekday = 2 // 2 = Monday
-        guard let interval = calendar.dateInterval(of: .weekOfYear, for: Date()) else { return [] }
-        // Adds 0–6 days to the start of the week to produce each day
+        // Shift the base date by weekOffset weeks to get the target week
+        let baseDate = calendar.date(byAdding: .weekOfYear, value: weekOffset, to: Date()) ?? Date()
+        guard let interval = calendar.dateInterval(of: .weekOfYear, for: baseDate) else { return [] }
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: interval.start) }
+    }
+
+    // "This Week" for the current week; "Week of Jul 27 - Aug 2" for all other weeks
+    private var weekTitle: String {
+        guard weekOffset != 0, let first = weekDates.first, let last = weekDates.last else {
+            return "This Week"
+        }
+        let firstStr = first.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
+        let lastStr = last.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
+        return "\(firstStr) - \(lastStr)"
     }
 
     // Returns activities for a given day, sorted by time (no-time activities go last)
@@ -34,9 +47,33 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            // Weekly schedule — one card per day
+            // Weekly schedule — title header + one card per day
             ScrollView {
                 VStack(spacing: 12) {
+                    // Title row — lives in the scroll content so it sits below the nav buttons
+                    HStack(spacing: 12) {
+                        Button { weekOffset -= 1 } label: {
+                            Image(systemName: "chevron.left")
+                                .fontWeight(.semibold)
+                                .padding(6)
+                                .background(Circle().fill(Color.appAccent.opacity(0.25)))
+                        }
+                        // Fixed width so the arrows don't shift between "This Week" and date ranges
+                        Text(weekTitle)
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .lineLimit(1)
+                            .frame(width: 200, alignment: .center)
+                        Button { weekOffset += 1 } label: {
+                            Image(systemName: "chevron.right")
+                                .fontWeight(.semibold)
+                                .padding(6)
+                                .background(Circle().fill(Color.appAccent.opacity(0.25)))
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.bottom, 4)
+
                     ForEach(weekDates, id: \.self) { date in
                         // Tapping a card navigates to DayView
                         NavigationLink(destination: DayView(date: date, activities: activitiesFor(date: date))) {
@@ -90,13 +127,18 @@ struct HomeView: View {
                     }
                 }
             }
+            // Swipe left to advance to the next week, swipe right to go back
+            .gesture(
+                DragGesture(minimumDistance: 50)
+                    .onEnded { value in
+                        if value.translation.width < 0 {
+                            weekOffset += 1
+                        } else {
+                            weekOffset -= 1
+                        }
+                    }
+            )
             .toolbar {
-                // "This Week" title centered in the nav bar
-                ToolbarItem(placement: .principal) {
-                    Text("This Week")
-                        .font(.title)
-                        .fontWeight(.bold)
-                }
                 // + button on the left — toggles the dropdown menu
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
@@ -123,7 +165,7 @@ struct HomeView: View {
                 NewPlanView()
             }
             .navigationDestination(isPresented: $showProfile) {
-                Text("Profile Page")
+                ProfileView()
             }
         }
     }
@@ -177,12 +219,12 @@ struct DayRowView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         // Today's card gets a subtle accent tint; other days use the standard secondary background
-        .background(isToday ? Color.accentColor.opacity(0.08) : Color(.secondarySystemBackground))
+        .background(isToday ? Color.appTodayCard : Color.appCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         // Today's card also gets a visible border
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(isToday ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                .stroke(isToday ? Color.appAccent : Color.clear, lineWidth: 1.5)
         )
     }
 
@@ -199,7 +241,7 @@ struct DayRowView: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Activity.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try! ModelContainer(for: Activity.self, Plan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     return HomeView()
         .modelContainer(container)
 }

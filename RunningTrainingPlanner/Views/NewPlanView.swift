@@ -90,15 +90,21 @@ struct NewPlanView: View {
             }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isFormValid ? Color.blue : Color(.systemGray4)) // grey when invalid, blue when ready
+                .background(isFormValid ? Color.appAccent : Color(.systemGray4))
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
                 .padding(.bottom)
                 .disabled(!isFormValid) // prevents tapping when form is incomplete
         }
-        .navigationTitle("New Run Plan")
-        .navigationBarTitleDisplayMode(.inline) // title is in line with rest of nav bar
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("New Run Plan")
+                    .font(.title)
+                    .fontWeight(.bold)
+            }
+        }
     }
     private func savePlan() {
         guard let distance = goalDistance else { return }

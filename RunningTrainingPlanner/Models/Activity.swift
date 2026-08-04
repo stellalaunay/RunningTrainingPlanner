@@ -50,6 +50,8 @@ enum PaceTag: String, Codable, CaseIterable {
 
 @Model
 final class Activity {
+    var activityId: UUID = UUID()
+    var planId: UUID?           // FK for backend — mirrors the plan relationship below
     var name: String
     var date: Date
     var time: Date?
@@ -60,7 +62,7 @@ final class Activity {
     var pace: Int?
     var paceTag: PaceTag?
     var duration: Int?
-    var plan: Plan?
+    var plan: Plan?             // SwiftData relationship — used for local queries
 
     init(name: String, date: Date, time: Date? = nil, type: ActivityType, notes: String? = nil, distance: Double? = nil, distanceUnit: DistanceUnit? = nil, pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil) {
         self.name = name
