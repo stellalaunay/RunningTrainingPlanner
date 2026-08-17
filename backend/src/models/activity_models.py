@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Literal
 from uuid import UUID
-from datetime import date, time, datetime
-
+from datetime import datetime, date as date_type, time as time_type
 
 class Activity(BaseModel):
     """
@@ -11,26 +10,36 @@ class Activity(BaseModel):
     activity_id: UUID 
     plan_id: Optional[UUID]
     name: str
-    date: date 
-    time: Optional[str] 
-    type: str
-    notes: Optional[str] = Field(None, max_length = 255) # word limit? Is None default
-    distance: Optional[int] # double?
-    distance_unit: str
+    date: date_type 
+    time: Optional[time_type] 
+    type: Literal["Run", "Strength Training", "Walk", "Rock Climb", "Other"]
+    notes: Optional[str]
+    distance: Optional[float] 
+    distance_unit: Optional[Literal["km", "mi"]]
     pace: Optional[int]
-    pace_tag = Optional[str]
-    duration = Optional[str]
+    pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]]
+    duration: Optional[int]
+    created_at: datetime
+    user_id: UUID
+    is_public: bool
 
 class ActivityCreate(BaseModel):
     """
     Represents the required fields to create a new activity.
     """
+    plan_id: Optional[UUID] = None
     name: str
-    date: str
-    type: str
+    date: date_type
+    time: Optional[time_type] = None
+    type: Literal["Run", "Strength Training", "Walk", "Rock Climb", "Other"]
+    notes: Optional[str] = None
+    distance: Optional[float] = None
+    distance_unit: Optional[Literal["km", "mi"]] = None
+    pace: Optional[int] = None
+    pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
+    duration: Optional[int] = None
+    is_public: bool = False
 
-
-    # need to include all optional fields?
 
 
 class ActivityUpdate(BaseModel):
@@ -40,12 +49,13 @@ class ActivityUpdate(BaseModel):
     """
     plan_id: Optional[UUID] = None
     name: Optional[str] = None
-    date: Optional[datetime.date] = None
-    time: Optional[datetime.time] = None
-    type: Optional[str] = None
+    date: Optional[date_type] = None
+    time: Optional[time_type] = None
+    type: Optional[Literal["Run", "Strength Training", "Walk", "Rock Climb", "Other"]] = None
     notes: Optional[str] = None
     distance: Optional[int] = None
     distance_unit: Optional[str] = None
     pace: Optional[int] = None
-    pace_tag: Optional[str] = None
-    duration: Optional[str] = None
+    pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
+    duration: Optional[int] = None
+    is_public: Optional[bool] = None

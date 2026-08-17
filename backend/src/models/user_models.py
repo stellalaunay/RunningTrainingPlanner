@@ -15,11 +15,12 @@ class User(BaseModel):
     first_name: str
     last_name: str
     profile_photo_url: Optional[str] 
-    default_distance_unit = str
+    default_distance_unit: Optional[Literal["km", "mi"]]
     easy_pace = Optional[int] 
     long_run_pace = Optional[int]
     speed_pace = Optional[int]
     created_at: datetime
+    firebase_uid: UUID
     # add email? should add to db
 
 
@@ -31,7 +32,7 @@ class UserCreate(BaseModel):
     first_name: str
     last_name: str
     profile_photo_url: Optional[str] = None
-    default_distance_unit: Literal["km", "mi"] = "mi"
+    default_distance_unit: Optional[Literal["km", "mi"]] = None
     easy_pace: Optional[int] = None
     long_run_pace: Optional[int] = None
     speed_pace: Optional[int] = None

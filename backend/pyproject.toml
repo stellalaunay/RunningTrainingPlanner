@@ -7,5 +7,6 @@ requires-python = ">=3.13"
 dependencies = [
     "asyncpg>=0.31.0",
     "fastapi[standard]>=0.141.1",
+    "firebase-admin>=7.5.0",
     "python-dotenv>=1.2.2",
 ]

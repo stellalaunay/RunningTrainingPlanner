@@ -1,29 +1,34 @@
 from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends
 from models.plan_models import Plan, PlanCreate, PlanUpdate
 from database.postgres import get_postgres
+from auth.dependencies import get_current_user_id, get_current_firebase_uid
+from auth.authorization import is_owner
 from typing import List
 import asyncpg
 from loguru import logger
+from uuid import UUID
 
 plan_router = APIRouter()
 
 
-# need to include user_id in paths?
-
-
-# create plan
+# create plan -> me
 
 @plan_router.post("/plans", response_model = Plan)
 async def create_plan(
     plan: PlanCreate = Body(...),
+    current_user_id: UUID = Depends(get_current_user_id),
     db_pool: asyncpg.Pool = Depends(get_postgres), 
 ) -> Plan:
+
+    
     """
     Create a new plan.
     Parameters
     ----------
     plan : PlanCreate
         The plan details to create.
+    current_user_id: UUID
+        The ID of the user currently logged in.
     db_pool : asyncpg.Pool
         Database connection pool injected by dependency.
     Returns
@@ -31,46 +36,49 @@ async def create_plan(
     Plan
         The newly created plan.
     """
+
     query = """
-    INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id, user_id, name, distance, race_date, goal_time_seconds
+        INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds, is_public)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
     """
 
     try:
         async with db_pool.acquire() as conn:
             result = await conn.fetchrow(
                 query,
-                plan.user_id,
+                current_user_id,
                 plan.name,
                 plan.distance,
                 plan.race_date,
                 plan.goal_time_seconds,
+                plan.is_public
             )
 
-            if result:
-                return Plan(**dict(result))
-            else:
-                logger.error("Failed to create plan")
-                raise HTTPException(status_code = 500, detail = "Failed to create plan")
+            return Plan(**dict(result))
+    
     except Exception as e:
         logger.error(f"Error during plan creation: {e}")
-        raise HTTPException(status_code = 500, detail = "Internal server error during plan creation")
+        raise HTTPException(status_code=500, detail="Internal server error during plan creation")
 
 
 
-# get plan
-@plan_router.get("/plans/{id}", response_model = Plan)
+# get plan by id
+@plan_router.get("/plans/{plan_id}", response_model = Plan)
 async def get_plan_by_id(
-    id: int = Path(..., ge=1),
+    plan_id: UUID = Path(...),
+    current_user_id: UUID = Depends(get_current_user_id),
     db_pool: asyncpg.Pool = Depends(get_postgres),
 ) -> Plan:
+    
     """
     Get a plan by its ID.
     Parameters
     ----------
-    id : int
+    plan_id : UUID
         The ID of the plan.
+    current_user_id: UUID
+        The ID of the user currently logged in.
     db_pool : asyncpg.Pool, optional
         Database connection pool injected by dependency.
     Returns
@@ -79,29 +87,37 @@ async def get_plan_by_id(
         The plan details for the given ID.
     """
 
-    query = "SELECT id, user_id, name, distance, race_date, goal_time_seconds FROM plans WHERE id = $1"
+    query = "SELECT * FROM plans WHERE plan_id = $1"
+
 
     try:
         async with db_pool.acquire() as conn:
-            result = await conn.fetchrow(query, id)
-            if result:
-                return Plan(**dict(result))
-            else:
-                logger.warning(f"Plan with ID {id} not found")
-                raise HTTPException(status_code = 404, detail = "Plan not found")
+
+            result = await conn.fetchrow(query, plan_id)
+
+            if result is None:
+                logger.warning(f"Plan with ID {plan_id} not found")
+                raise HTTPException(status_code=404, detail="Plan not found")
+            
+            if not result["is_public"] and result["user_id"] != current_user_id:
+                logger.warning(f"User ID: {current_user_id} not authorized to view plan with id {plan_id}")
+                raise HTTPException(status_code=402, detail="Not authorized to view plan")
+                
+            return Plan(**dict(result))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching plan by ID: {e}")
-        raise HTTPException(
-            status_code = 500, detail = "Internal server error during plan retrieval"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error during plan retrieval")
 
     
 
 
-# edit plan -> need to disallow changing user_id
-@plan_router.put("/plans/{id}", response_model = Plan)
-async def update_user(
-    id: int = Path(..., ge = 1),
+# edit plan -> me
+@plan_router.put("/plans/{plan_id}", response_model = Plan)
+async def update_plan(
+    plan_id: UUID = Path(...),
+    current_user_id: UUID = Depends(get_current_user_id),
     plan: PlanUpdate = Body(...),
     db_pool: asyncpg.Pool = Depends(get_postgres),
 ) -> Plan:
@@ -111,8 +127,10 @@ async def update_user(
     Update a plan by its ID.
     Parameters
     ----------
-    id : int
+    plan_id : UUID
         The ID of the plan to update.
+    current_user_id: UUID
+        The ID of the current user logged in.
     plan : PlanUpdate
         The fields to update (partial updates allowed).
     db_pool : asyncpg.Pool, optional
@@ -123,49 +141,54 @@ async def update_user(
         The updated plan details.
     """
 
-    # need to return user_id if user cannot change it?
-    query = """
-    UPDATE plans
-    SET name = COALESCE($1, name),
-        distance = COALESCE($2, distance),
-        race_date = COALESCE($3, race_date),
-        goal_time_seconds = COALESCE($4, goal_time_seconds),     
-    WHERE id = $5
-    returning id, name, distance, race_date, goal_time_seconds
+    user_query = "SELECT user_id FROM plans WHERE plan_id = $1"
+
+    update_query = """
+        UPDATE plans
+        SET name = COALESCE($1, name),
+            distance = COALESCE($2, distance),
+            race_date = COALESCE($3, race_date),
+            goal_time_seconds = COALESCE($4, goal_time_seconds),
+            is_public = COALESCE($5, is_public)   
+        WHERE plan_id = $6
+        returning *
     """
 
     try:
         async with db_pool.acquire() as conn:
+
+            existing = await conn.fetchrow(user_query, plan_id)
+
+            if existing is None:
+                raise HTTPException(status_code=404, detail="Plan not found")
+            if not is_owner(current_user_id, existing["user_id"]):
+                raise HTTPException(status_code=403, detail="Not authorized to edit this plan")
+
             result = await conn.fetchrow(
-                query,
-                plan.name,
-                plan.distance,
-                plan.race_date,
-                plan.goal_time_seconds,
-                id
+                update_query,
+                plan.name, plan.distance, plan.race_date, plan.goal_time_seconds, plan.is_public, plan_id
             )
 
-            if result:
-                return Plan(**dict(result))
-            else:
-                logger.warning(f"Plan with ID {id} not found for update")
-                raise HTTPException(status_code = 404, detail = "Plan not found")
+            return Plan(**dict(result))
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating plan: {e}")
-        raise HTTPException(status = 500, detail = "Internal server error during plan update")
+        raise HTTPException(status_code=500, detail="Internal server error during plan update")
     
 
-# delete plan -> need to implement cascade delete?
-@plan_router.delete("/plans/{id}")
+# delete plan 
+@plan_router.delete("/plans/{plan_id}")
 async def delete_plan(
-    id: int = Path(..., ge = 1),
+    plan_id: UUID = Path(...),
     db_pool: asyncpg.Pool = Depends(get_postgres)
 ) -> dict:
     """
     Delete a plan by its ID.
     Parameters
     ----------
-    id : int
+    plan_id : UUID
         The ID of the plan to delete.
     db_pool : asyncpg.Pool, optional
         Database connection pool injected by dependency.
@@ -175,28 +198,115 @@ async def delete_plan(
         A message indicating the plan was deleted.
     """
 
-    query = "DELETE FROM plans WHERE id = $1 RETURNING id"
-
+    query = "DELETE FROM plans WHERE plan_id = $1 RETURNING plan_id"
     try:
         async with db_pool.acquire() as conn:
-            result = await conn.fetchrow(query, id)
+            result = await conn.fetchrow(query, plan_id)
+
             if result:
                 return {"message": "Plan deleted successfully"}
             else:
-                logger.warning(f"Plan with ID {id} not found for deletion")
-                raise HTTPException(status_code = 404, detail = "Plan not found for deletion")
+                logger.warning(f"Plan with ID {plan_id} not found for deletion")
+                raise HTTPException(status_code=404, detail="Plan not found for deletion")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting plan: {e}")
-        raise HTTPException(status_code = 500, detail = "Internal server error during plan deletion")
+        raise HTTPException(status_code=500, detail="Internal server error during plan deletion")
 
 
-# get plans
-@activity_router.get("/plans/", response_model = List[Plan])
+# get plans -> me (public and private)
+@plan_router.get("/plans/me", response_model = List[Plan])
+async def get_all_my_plans(
+    current_user_id: UUID = Depends(get_current_user_id),
+    db_pool: asyncpg.Pool = Depends(get_postgres),
+) -> List[Plan]:
+    """
+    Get a list of all plans for logged in user.
+
+    Parameters
+    ----------
+    current_user_id: UUID
+        The ID of the user currently logged in.
+    db_pool : asyncpg.Pool, optional
+        Database connection pool injected by dependency.
+    Returns
+    -------
+    List[Plan]
+        A list of all plans.
+    """
+
+    query = """
+        SELECT *
+        FROM plans
+        WHERE user_id = $1
+    """
+
+    try: 
+        async with db_pool.acquire() as conn:
+            results = await conn.fetch(
+            query,
+            current_user_id
+            )
+
+            return [Plan(**dict(result)) for result in results]
+        
+    except Exception as e:
+        logger.error(f"Error fetching plans: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve plans")
+
+
+# get plans -> for a user (public only)
+@plan_router.get("/plans/{user_id}", response_model = List[Plan])
+async def get_all_plans_by_user_id(
+    resource_user_id: UUID = Path(...),
+    db_pool: asyncpg.Pool = Depends(get_postgres),
+) -> List[Plan]:
+    """
+    Get a list of all plans for a specific user (view).
+
+    Parameters
+    ----------
+    resource_user_id: UUID
+        The ID of the user being queried.
+    db_pool : asyncpg.Pool, optional
+        Database connection pool injected by dependency.
+    Returns
+    -------
+    List[Plan]
+        A list of all plans.
+    """
+
+    query = """
+        SELECT *
+        FROM plans
+        WHERE user_id = $1 AND is_public = TRUE
+    """,
+
+    try: 
+        async with db_pool.acquire() as conn:
+            results = await conn.fetch(
+            query,
+            resource_user_id
+            )
+
+            return [Plan(**dict(result)) for result in results]
+        
+    except Exception as e:
+        logger.error(f"Error fetching plans: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve plans")
+
+
+
+
+
+# get plans -> all public, all users
+@plan_router.get("/plans/", response_model = List[Plan])
 async def get_all_plans(
     db_pool: asyncpg.Pool = Depends(get_postgres),
 ) -> List[Plan]:
     """
-    Get a list of all plans.
+    Get a list of all public plans.
 
     Parameters
     ----------
@@ -208,7 +318,11 @@ async def get_all_plans(
         A list of all plans.
     """
 
-    query = "SELECT id, user_id, name, distance, race_date, goal_time_seconds FROM plans"
+    query = """
+        SELECT * 
+        FROM plans 
+        WHERE is_public = TRUE
+    """
 
     try: 
         async with db_pool.acquire() as conn:
@@ -216,4 +330,4 @@ async def get_all_plans(
             return [Plan(**dict(result)) for result in results]
     except Exception as e:
         logger.error(f"Error fetching plans: {e}")
-        raise HTTPException(status_code = 500, detail = "Failed to retrieve plans")
+        raise HTTPException(status_code=500, detail="Failed to retrieve plans")

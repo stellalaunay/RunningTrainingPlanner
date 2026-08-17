@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Literal
 from uuid import UUID
-from datetime import date, time, datetime
+from datetime import datetime, date, time
 
 
 class Plan(BaseModel):
@@ -12,23 +12,25 @@ class Plan(BaseModel):
     user_id: UUID
     name: str
     distance: float
-    race_date: datetime.date
+    race_date: date
     goal_time_seconds: Optional[int]
-    created_at = datetime
+    created_at: datetime
+    is_public: bool
 
 
 class PlanCreate(BaseModel):
     """
     Represents the required fields to create a new plan.
     """
-    user_id: UUID # how is this handled? automatic?
     name: str
     distance: float 
-    race_date: datetime.date 
+    race_date: date 
     goal_time_seconds: Optional[int] = None
+    is_public: bool = False
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
     distance: Optional[float] = None
-    race_date: Optional[datetime.date] = None
+    race_date: Optional[date] = None
     goal_time_seconds: Optional[int] = None
+    is_public: Optional[bool] = None

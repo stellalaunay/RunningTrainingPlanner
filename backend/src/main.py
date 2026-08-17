@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from database.postgres import init_postgres, close_postgres
-from routes.product_routes import product_router
+from auth.firebase import init_firebase
 import uvicorn
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_firebase()
     await init_postgres()
     yield
     await close_postgres()
