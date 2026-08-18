@@ -7,11 +7,13 @@ from typing import List
 import asyncpg
 from loguru import logger
 from uuid import UUID
+from datetime import datetime, date as date_type, time as time_type
+
 
 activity_router = APIRouter()
 
 
-# create activity 
+# ------------- Create Activity ------------
 @activity_router.post("/activities", response_model = Activity)
 async def create_activity(
     activity: ActivityCreate = Body(...),
@@ -74,7 +76,7 @@ async def create_activity(
 
 
 
-# get activity -> me and other
+# ------------- Get Activity ------------
 @activity_router.get("/activities/{activity_id}", response_model = Activity)
 async def get_activity_by_id(
     activity_id: UUID = Path(...),
@@ -125,7 +127,7 @@ async def get_activity_by_id(
 
     
 
-# edit activity
+# ------------- Edit Activity ------------
 @activity_router.put("/activities/{activity_id}", response_model = Activity)
 async def update_activity(
     activity_id: UUID = Path(...),
@@ -203,13 +205,13 @@ async def update_activity(
         raise           
     except Exception as e:
         logger.error(f"Error updating activity: {e}")
-        raise HTTPException(status=500, detail="Internal server error during activity update")
+        raise HTTPException(status_code=500, detail="Internal server error during activity update")
     
 
 
 
 
-# delete activity
+# ------------- Delete Activity ------------
 @activity_router.delete("/activities/{activity_id}")
 async def delete_activity(
     activity_id: UUID = Path(...),
@@ -261,11 +263,11 @@ async def delete_activity(
 
 
 
-# get actvities
+# ------------- Filter Activities By Week ------------
 @activity_router.get("/activities/filter/week", response_model = List[Activity])
 async def filter_activities_by_week(
-    monday: str = Query(...),
-    sunday: str = Query(...), 
+    monday: date_type = Query(...),
+    sunday: date_type = Query(...), 
     current_user_id: UUID = Depends(get_current_user_id),
     db_pool: asyncpg.Pool = Depends(get_postgres),
 ) -> List[Activity]:
@@ -273,9 +275,9 @@ async def filter_activities_by_week(
     Get activities within a specific date range (week).
     Parameters
     ----------
-    monday : str
+    monday : date
         The starting date for filtering.
-    sunday : str
+    sunday : date
         The ending date for filtering.
     current_user_id: UUID
         The ID of the user currently logged in, making the request.
@@ -287,8 +289,9 @@ async def filter_activities_by_week(
         A list of activiites within the specified date range.
     """
 
-    query = """"
+    query = """
     SELECT *
+    FROM activities
     WHERE user_id = $1 AND date BETWEEN $2 and $3
     """
 

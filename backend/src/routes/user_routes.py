@@ -10,11 +10,11 @@ from uuid import UUID
 
 user_router = APIRouter()
 
-# create user -> on create account
+# ------------- Create User ------------
 @user_router.post("/users", response_model = User)
 async def create_user(
     user: UserCreate = Body(...),
-    firebase_uid: UUID = Depends(get_current_firebase_uid),
+    firebase_uid: str = Depends(get_current_firebase_uid),
     db_pool: asyncpg.Pool = Depends(get_postgres), 
 ) -> User:
     
@@ -24,7 +24,7 @@ async def create_user(
     ----------
     user : UserCreate
         The user details to create.
-    firebase_uid: UUID
+    firebase_uid: str
         The firebase_uid of the user, from firebase auth
     db_pool : asyncpg.Pool
         Database connection pool injected by dependency.
@@ -52,7 +52,7 @@ async def create_user(
                 user.easy_pace,
                 user.long_run_pace,
                 user.speed_pace,
-                firebase_uid
+                firebase_uid,
             )
 
             return User(**dict(result))
@@ -63,7 +63,7 @@ async def create_user(
 
 
 
-# get user (for profile) -> me
+# ------------- Get My User ------------
 @user_router.get("/users/me", response_model = User)
 async def get_my_user(
     current_user_id: UUID = Depends(get_current_user_id),
@@ -92,11 +92,11 @@ async def get_my_user(
     try:
         async with db_pool.acquire() as conn:
             result = await conn.fetchrow(query, current_user_id)
-            if result:
-                return User(**dict(result))
-            else:
+            if result is None:
                 logger.warning(f"User with ID {current_user_id} not found")
                 raise HTTPException(status_code=404, detail="User not found")
+                
+            return User(**dict(result))
     except HTTPException:
         raise
     except Exception as e:
@@ -105,7 +105,7 @@ async def get_my_user(
             status_code=500, detail="Internal server error during user retrieval"
         )
 
-# edit profile -> me
+# ------------- Edit User ------------
 @user_router.put("/users", response_model = User)
 async def update_user(
     user: UserUpdate = Body(...),
@@ -136,7 +136,7 @@ async def update_user(
     SET first_name = COALESCE($1, first_name),
         last_name = COALESCE($2, last_name),
         profile_photo_url = COALESCE($3, profile_photo_url),
-        default_distance_units = COALESCE($4, default_distance_units),
+        default_distance_unit = COALESCE($4, default_distance_unit),
         easy_pace = COALESCE($5, easy_pace),
         long_run_pace = COALESCE($6, long_run_pace),
         speed_pace = COALESCE($7, speed_pace)
@@ -158,25 +158,26 @@ async def update_user(
                 current_user_id
             )
 
-            if result:
-                return User(**dict(result))
-            else:
+            if result is None:
                 logger.warning(f"User with ID {current_user_id} not found for update")
                 raise HTTPException(status_code=404, detail="User not found")
+            
+            return User(**dict(result))
+                
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating user: {e}")
-        raise HTTPException(status=500, detail="Internal server error during user update")
+        raise HTTPException(status_code=500, detail="Internal server error during user update")
     
 
 
 
-# delete user -> me
+# ------------- Delete User ------------
 @user_router.delete("/users")
 async def delete_user(
     current_user_id: UUID = Depends(get_current_user_id),
-    firebase_uid: UUID = Depends(get_current_firebase_uid),
+    firebase_uid: str = Depends(get_current_firebase_uid),
     db_pool: asyncpg.Pool = Depends(get_postgres)
 ) -> dict:
     """
@@ -185,7 +186,7 @@ async def delete_user(
     ----------
     current_user_id : UUID
         The ID of the user currently logged in, making the request.
-    firebase_uid: UUID
+    firebase_uid: str
         The firebase_uid of the user, from firebase auth
     db_pool : asyncpg.Pool, optional
         Database connection pool injected by dependency.
@@ -207,11 +208,11 @@ async def delete_user(
     try:
         async with db_pool.acquire() as conn:
             result = await conn.fetchrow(query, current_user_id)
-            if result:
-                return {"message": "User deleted successfully"}
-            else:
+            if result is None:
                 logger.warning(f"User with ID {current_user_id} not found for deletion")
                 raise HTTPException(status_code=404, detail="User not found for deletion")
+
+            return {"message": "User deleted successfully"}                
     except HTTPException:
         raise
     except Exception as e:

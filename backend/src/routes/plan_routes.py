@@ -11,7 +11,7 @@ from uuid import UUID
 plan_router = APIRouter()
 
 
-# create plan -> me
+# ------------- Create Plan ------------
 
 @plan_router.post("/plans", response_model = Plan)
 async def create_plan(
@@ -63,7 +63,48 @@ async def create_plan(
 
 
 
-# get plan by id
+# ------------- Get My Plans ------------
+@plan_router.get("/plans/me", response_model = List[Plan])
+async def get_all_my_plans(
+    current_user_id: UUID = Depends(get_current_user_id),
+    db_pool: asyncpg.Pool = Depends(get_postgres),
+) -> List[Plan]:
+    """
+    Get a list of all plans for logged in user.
+
+    Parameters
+    ----------
+    current_user_id: UUID
+        The ID of the user currently logged in.
+    db_pool : asyncpg.Pool, optional
+        Database connection pool injected by dependency.
+    Returns
+    -------
+    List[Plan]
+        A list of all plans.
+    """
+
+    query = """
+        SELECT *
+        FROM plans
+        WHERE user_id = $1
+    """
+
+    try:
+        async with db_pool.acquire() as conn:
+            results = await conn.fetch(
+            query,
+            current_user_id
+            )
+
+            return [Plan(**dict(result)) for result in results]
+
+    except Exception as e:
+        logger.error(f"Error fetching plans: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve plans")
+
+
+# ------------- Get Plan ------------
 @plan_router.get("/plans/{plan_id}", response_model = Plan)
 async def get_plan_by_id(
     plan_id: UUID = Path(...),
@@ -113,7 +154,7 @@ async def get_plan_by_id(
     
 
 
-# edit plan -> me
+# ------------- Edit Plan ------------
 @plan_router.put("/plans/{plan_id}", response_model = Plan)
 async def update_plan(
     plan_id: UUID = Path(...),
@@ -178,7 +219,7 @@ async def update_plan(
         raise HTTPException(status_code=500, detail="Internal server error during plan update")
     
 
-# delete plan 
+# ------------- Delete Plan ------------
 @plan_router.delete("/plans/{plan_id}")
 async def delete_plan(
     plan_id: UUID = Path(...),
@@ -215,49 +256,8 @@ async def delete_plan(
         raise HTTPException(status_code=500, detail="Internal server error during plan deletion")
 
 
-# get plans -> me (public and private)
-@plan_router.get("/plans/me", response_model = List[Plan])
-async def get_all_my_plans(
-    current_user_id: UUID = Depends(get_current_user_id),
-    db_pool: asyncpg.Pool = Depends(get_postgres),
-) -> List[Plan]:
-    """
-    Get a list of all plans for logged in user.
-
-    Parameters
-    ----------
-    current_user_id: UUID
-        The ID of the user currently logged in.
-    db_pool : asyncpg.Pool, optional
-        Database connection pool injected by dependency.
-    Returns
-    -------
-    List[Plan]
-        A list of all plans.
-    """
-
-    query = """
-        SELECT *
-        FROM plans
-        WHERE user_id = $1
-    """
-
-    try: 
-        async with db_pool.acquire() as conn:
-            results = await conn.fetch(
-            query,
-            current_user_id
-            )
-
-            return [Plan(**dict(result)) for result in results]
-        
-    except Exception as e:
-        logger.error(f"Error fetching plans: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve plans")
-
-
-# get plans -> for a user (public only)
-@plan_router.get("/plans/{user_id}", response_model = List[Plan])
+# ------------- Get Plans By User ------------
+@plan_router.get("/plans/user/{resource_user_id}", response_model = List[Plan])
 async def get_all_plans_by_user_id(
     resource_user_id: UUID = Path(...),
     db_pool: asyncpg.Pool = Depends(get_postgres),
@@ -281,9 +281,9 @@ async def get_all_plans_by_user_id(
         SELECT *
         FROM plans
         WHERE user_id = $1 AND is_public = TRUE
-    """,
+    """
 
-    try: 
+    try:
         async with db_pool.acquire() as conn:
             results = await conn.fetch(
             query,
@@ -300,7 +300,7 @@ async def get_all_plans_by_user_id(
 
 
 
-# get plans -> all public, all users
+# ------------- Get All Plans ------------
 @plan_router.get("/plans/", response_model = List[Plan])
 async def get_all_plans(
     db_pool: asyncpg.Pool = Depends(get_postgres),
