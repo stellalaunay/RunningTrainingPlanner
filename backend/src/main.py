@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from database.postgres import init_postgres, close_postgres
 from auth.firebase import init_firebase
+from routes.user_routes import user_router
+from routes.plan_routes import plan_router
+from routes.activity_routes import activity_router
 import uvicorn
 
 
@@ -12,8 +15,10 @@ async def lifespan(app: FastAPI):
     yield
     await close_postgres()
 
-app: FastAPI = FastAPI(lifespan = lifespan, title = "Async FastAPI PostgreSQL Inventory Manager")
-app.include_router(product_router)
+app: FastAPI = FastAPI(lifespan=lifespan, title="RunningTrainingPlanner API")
+app.include_router(user_router)
+app.include_router(plan_router)
+app.include_router(activity_router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host = "0.0.0.0", port = 8080, reload = True)
