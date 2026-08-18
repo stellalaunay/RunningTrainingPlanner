@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct HomeView: View {
-    // Populated from the API once data loading is wired in
-    @State private var activities: [Activity] = []
+    // Sample data for UI development — replaced by API fetch once wired
+    @State private var activities: [Activity] = SampleData.activities
     @State private var showNewActivity = false
     @State private var showNewPlan = false
     @State private var showProfile = false

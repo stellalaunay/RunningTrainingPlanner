@@ -31,6 +31,7 @@ struct CreateActivityView: View {
     @State private var duration: Int
 
     @State private var showDiscardAlert = false
+    @State private var showDeleteAlert = false
 
     // Both required fields must be filled; guards against whitespace-only names.
     private var isFormValid: Bool {
@@ -238,9 +239,22 @@ struct CreateActivityView: View {
         }
         .contentMargins(.top, 20, for: .scrollContent) // space between top nav bar and first field
 
-        Button(isEditMode ? "Save Changes" : "Create Activity") {
-            saveActivity()
-        }
+        if isEditMode {
+            // Delete button — only visible when editing an existing activity
+            Button("Delete Activity", role: .destructive) {
+                showDeleteAlert = true
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemRed))
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+            .padding(.bottom)
+        } else {
+            Button("Create Activity") {
+                saveActivity()
+            }
             .frame(maxWidth: .infinity)
             .padding()
             .background(canSave ? Color.appAccent : Color(.systemGray4))
@@ -249,6 +263,7 @@ struct CreateActivityView: View {
             .padding(.horizontal)
             .padding(.bottom)
             .disabled(!canSave)
+        }
         }
         .navigationBarTitleDisplayMode(.inline)
         // Hides the system back button when there are unsaved edits, so the user can't bypass the alert
@@ -259,14 +274,31 @@ struct CreateActivityView: View {
                     .font(.title)
                     .fontWeight(.bold)
             }
-            // Custom back button shown only in edit mode when there are unsaved changes
             if isEditMode && isModified {
+                // Custom back button shown only in edit mode when there are unsaved changes
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         showDiscardAlert = true
                     } label: {
                         Image(systemName: "chevron.left")
                     }
+                }
+            } else if !isEditMode {
+                // Cancel button in create mode — dismisses the sheet or pops the navigation stack
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            // Checkmark save button — only visible in edit mode when there's something to save
+            if isEditMode {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        saveActivity()
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .fontWeight(.semibold)
+                    }
+                    .disabled(!canSave)
                 }
             }
         }
@@ -276,10 +308,21 @@ struct CreateActivityView: View {
         } message: {
             Text("You have unsaved changes. Going back will discard them.")
         }
+        .alert("Delete Activity", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deleteActivity() }
+        } message: {
+            Text("This will permanently delete \"\(activity?.name ?? "this activity")\". This action cannot be undone.")
+        }
     }
 
     private func saveActivity() {
         // TODO: POST/PUT activity to API
+        dismiss()
+    }
+
+    private func deleteActivity() {
+        // TODO: DELETE activity via API
         dismiss()
     }
 
