@@ -53,8 +53,8 @@ class ActivityUpdate(BaseModel):
     time: Optional[time_type] = None
     type: Optional[Literal["Run", "Strength Training", "Walk", "Rock Climb", "Other"]] = None
     notes: Optional[str] = None
-    distance: Optional[int] = None
-    distance_unit: Optional[str] = None
+    distance: Optional[float] = None
+    distance_unit: Optional[Literal["km", "mi"]] = None
     pace: Optional[int] = None
     pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
     duration: Optional[int] = None
