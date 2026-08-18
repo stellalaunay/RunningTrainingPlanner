@@ -3,25 +3,27 @@
 //  RunningTrainingPlanner
 //
 
-import SwiftUI
-import SwiftData
+import Foundation
 
-@Model
-final class Plan {
-    var planId: UUID = UUID()
-    var userId: UUID?               // FK for backend — mirrors the user relationship below
-    var name: String
-    var distance: Double
-    var raceDate: Date
-    var goalTimeSeconds: Int?
-    var user: User?                 // SwiftData relationship — back-reference to User.plans
-    @Relationship(deleteRule: .cascade, inverse: \Activity.plan)
-    var activities: [Activity] = []
-
-    init(name: String, distance: Double, raceDate: Date, goalTimeSeconds: Int? = nil) {
-        self.name = name
-        self.distance = distance
-        self.raceDate = raceDate
-        self.goalTimeSeconds = goalTimeSeconds
+struct Plan: Codable, Identifiable, Hashable {
+    var id: UUID { planId }
+    let planId: UUID
+    let userId: UUID
+    let name: String
+    let distance: Double
+    let raceDate: Date
+    let goalTimeSeconds: Int?
+    let createdAt: Date
+    let isPublic: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case planId = "plan_id"
+        case userId = "user_id"
+        case name
+        case distance
+        case raceDate = "race_date"
+        case goalTimeSeconds = "goal_time_seconds"
+        case createdAt = "created_at"
+        case isPublic = "is_public"
     }
 }

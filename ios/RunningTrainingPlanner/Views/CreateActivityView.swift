@@ -5,14 +5,12 @@
 //  Created by Stella Launay on 7/31/26.
 //
 import SwiftUI
-import SwiftData
 
 struct CreateActivityView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    // Fetches all plans from SwiftData so the user can tag this activity to one
-    @Query private var plans: [Plan]
+    // Populated from the API once data loading is wired in
+    @State private var plans: [Plan] = []
 
     // When non-nil, the view is in edit mode and will update this activity instead of creating a new one
     let activity: Activity?
@@ -49,12 +47,10 @@ struct CreateActivityView: View {
                selectedType != a.type ||
                notes != (a.notes ?? "") ||
                date != a.date ||
-               time != a.time ||
                distance != a.distance ||
                distanceUnit != (a.distanceUnit ?? .miles) ||
                currentPace != a.pace ||
                selectedPaceTag != a.paceTag ||
-               selectedPlan != a.plan ||
                duration != (a.duration ?? 10)
     }
 
@@ -72,11 +68,11 @@ struct CreateActivityView: View {
             _selectedType = State(initialValue: a.type)
             _notes = State(initialValue: a.notes ?? "")
             _date = State(initialValue: a.date)
-            _time = State(initialValue: a.time)
+            _time = State(initialValue: nil) // time is stored as String in backend; not pre-filled yet
             _distance = State(initialValue: a.distance)
             _distanceUnit = State(initialValue: a.distanceUnit ?? .miles)
             _selectedPaceTag = State(initialValue: a.paceTag)
-            _selectedPlan = State(initialValue: a.plan)
+            _selectedPlan = State(initialValue: nil) // plan linking not wired yet
             _duration = State(initialValue: a.duration ?? 10)
             let totalPace = a.pace ?? 0
             _paceMinutes = State(initialValue: totalPace / 60)
@@ -283,49 +279,14 @@ struct CreateActivityView: View {
     }
 
     private func saveActivity() {
-        guard let type = selectedType else { return }
-        let pace: Int? = (paceMinutes > 0 || paceSeconds > 0) ? paceMinutes * 60 + paceSeconds : nil
-
-        if let existing = activity {
-            // Edit mode — update the existing record in place
-            existing.name = name
-            existing.date = date
-            existing.time = time
-            existing.type = type
-            existing.notes = notes.isEmpty ? nil : notes
-            existing.distance = (type == .run || type == .walk) ? distance : nil
-            existing.distanceUnit = (type == .run || type == .walk) ? distanceUnit : nil
-            existing.pace = type == .run ? pace : nil
-            existing.paceTag = type == .run ? selectedPaceTag : nil
-            existing.duration = type == .rockClimb ? duration : nil
-            existing.plan = selectedPlan
-            try? modelContext.save()
-        } else {
-            // Create mode — insert a new activity
-            let newActivity = Activity(
-                name: name,
-                date: date,
-                time: time,
-                type: type,
-                notes: notes.isEmpty ? nil : notes,
-                distance: (type == .run || type == .walk) ? distance : nil,
-                distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
-                pace: type == .run ? pace : nil,
-                paceTag: type == .run ? selectedPaceTag : nil,
-                duration: type == .rockClimb ? duration : nil
-            )
-            newActivity.plan = selectedPlan
-            modelContext.insert(newActivity)
-        }
+        // TODO: POST/PUT activity to API
         dismiss()
     }
 
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Activity.self, Plan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    return NavigationStack {
+    NavigationStack {
         CreateActivityView()
     }
-    .modelContainer(container)
 }

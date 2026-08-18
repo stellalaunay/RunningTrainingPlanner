@@ -4,31 +4,18 @@
 //
 
 import SwiftUI
-import SwiftData
 import PhotosUI
 
-// TODO: Once login/onboarding is built, user creation moves there. This view should only ever receive an existing user.
+// TODO: Receive the logged-in User from the API and pass it to ProfileFormView
 struct ProfileView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var users: [User]
-
     var body: some View {
-        if let user = users.first {
-            ProfileFormView(user: user)
-        } else {
-            // Temporary: creates a blank user so the profile page is accessible before login is implemented
-            ProgressView()
-                .onAppear {
-                    modelContext.insert(User(firstName: "", lastName: ""))
-                }
-        }
+        ContentUnavailableView("Profile", systemImage: "person.circle", description: Text("Profile will load once the API is connected."))
     }
 }
 
 // The profile editing form — all fields are local copies until the user taps Save
 struct ProfileFormView: View {
     let user: User
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     // Local copies of all user fields — not written to the model until Save is tapped
@@ -58,8 +45,8 @@ struct ProfileFormView: View {
         self.user = user
         _firstName = State(initialValue: user.firstName)
         _lastName = State(initialValue: user.lastName)
-        _defaultDistanceUnit = State(initialValue: user.defaultDistanceUnit)
-        _profilePhotoData = State(initialValue: user.profilePhotoData)
+        _defaultDistanceUnit = State(initialValue: user.defaultDistanceUnit ?? .miles)
+        _profilePhotoData = State(initialValue: nil) // photo not stored in User model yet
         _easyPaceMin = State(initialValue: user.easyPace.map { $0 / 60 } ?? 0)
         _easyPaceSec = State(initialValue: user.easyPace.map { $0 % 60 } ?? 0)
         _longRunPaceMin = State(initialValue: user.longRunPace.map { $0 / 60 } ?? 0)
@@ -77,8 +64,7 @@ struct ProfileFormView: View {
     private var isModified: Bool {
         firstName != user.firstName ||
         lastName != user.lastName ||
-        defaultDistanceUnit != user.defaultDistanceUnit ||
-        profilePhotoData != user.profilePhotoData ||
+        defaultDistanceUnit != (user.defaultDistanceUnit ?? .miles) ||
         currentEasyPace != user.easyPace ||
         currentLongRunPace != user.longRunPace ||
         currentSpeedPace != user.speedPace
@@ -273,22 +259,13 @@ struct ProfileFormView: View {
     }
 
     private func saveProfile() {
-        user.firstName = firstName
-        user.lastName = lastName
-        user.defaultDistanceUnit = defaultDistanceUnit
-        user.profilePhotoData = profilePhotoData
-        user.easyPace = currentEasyPace
-        user.longRunPace = currentLongRunPace
-        user.speedPace = currentSpeedPace
-        try? modelContext.save()
+        // TODO: PUT updated profile to API
         dismiss()
     }
 }
 
 #Preview {
-    let container = try! ModelContainer(for: User.self, Plan.self, Activity.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    return NavigationStack {
+    NavigationStack {
         ProfileView()
     }
-    .modelContainer(container)
 }

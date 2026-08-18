@@ -48,32 +48,37 @@ enum PaceTag: String, Codable, CaseIterable {
     }
 }
 
-@Model
-final class Activity {
-    var activityId: UUID = UUID()
-    var planId: UUID?           // FK for backend — mirrors the plan relationship below
-    var name: String
-    var date: Date
-    var time: Date?
-    var type: ActivityType
-    var notes: String?
-    var distance: Double?
-    var distanceUnit: DistanceUnit?
-    var pace: Int?
-    var paceTag: PaceTag?
-    var duration: Int?
-    var plan: Plan?             // SwiftData relationship — used for local queries
-
-    init(name: String, date: Date, time: Date? = nil, type: ActivityType, notes: String? = nil, distance: Double? = nil, distanceUnit: DistanceUnit? = nil, pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil) {
-        self.name = name
-        self.date = date
-        self.time = time
-        self.type = type
-        self.notes = notes
-        self.distance = distance
-        self.distanceUnit = distanceUnit
-        self.pace = pace
-        self.paceTag = paceTag
-        self.duration = duration
+struct Activity: Codable, Identifiable {
+    var id: UUID { activityId }
+    let activityId: UUID
+    let planId: UUID?
+    let name: String
+    let date: Date
+    let time: String?
+    let type: ActivityType
+    let notes: String?
+    let distance: Double?
+    let distanceUnit: DistanceUnit?
+    let pace: Int?
+    let paceTag: PaceTag?
+    let duration: Int?
+    let createdAt: Date
+    let userId: UUID
+    
+    enum CodingKeys: String, CodingKey {
+        case activityId = "activity_id"
+        case planId = "plan_id"
+        case name
+        case date
+        case time
+        case type
+        case notes
+        case distance
+        case distanceUnit = "distance_unit"
+        case pace
+        case paceTag = "pace_tag"
+        case duration
+        case createdAt = "created_at"
+        case userId = "user_id"
     }
 }

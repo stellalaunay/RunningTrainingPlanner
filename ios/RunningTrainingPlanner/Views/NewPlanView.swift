@@ -4,10 +4,8 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct NewPlanView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     // @State variables are local to this view — when their value changes, SwiftUI automatically re-renders the UI.
@@ -107,24 +105,14 @@ struct NewPlanView: View {
         }
     }
     private func savePlan() {
-        guard let distance = goalDistance else { return }
-
-        // Only save goal time if the user set a non-zero value; convert h/m/s to total seconds
-        let goalTime: Int? = (goalHours > 0 || goalMinutes > 0 || goalSeconds > 0)
-            ? goalHours * 3600 + goalMinutes * 60 + goalSeconds
-            : nil
-
-        let plan = Plan(name: name, distance: distance, raceDate: raceDate, goalTimeSeconds: goalTime)
-        modelContext.insert(plan)
+        // TODO: POST plan to API
         dismiss()
     }
 
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Activity.self, Plan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     NavigationStack {
         NewPlanView()
     }
-    .modelContainer(container)
 }

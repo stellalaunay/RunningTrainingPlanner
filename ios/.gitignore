@@ -16,3 +16,4 @@ DerivedData/
 Pods/
 ## Carthage (if used)
 Carthage/Build/
+GoogleService-Info.plist

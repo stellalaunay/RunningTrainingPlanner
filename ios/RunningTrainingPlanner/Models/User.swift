@@ -3,27 +3,30 @@
 //  RunningTrainingPlanner
 //
 
-import SwiftUI
-import SwiftData
+import Foundation
 
-@Model
-final class User {
-    var userId: UUID = UUID()
-    var firstName: String
-    var lastName: String
-    // Stored as raw bytes; @Attribute(.externalStorage) keeps large binary data out of the main DB file
-    @Attribute(.externalStorage) var profilePhotoData: Data?
-    var defaultDistanceUnit: DistanceUnit = DistanceUnit.miles
-    // Pace per tag, stored as total seconds per distance unit — matches the pace field on Activity
-    var easyPace: Int?
-    var longRunPace: Int?
-    var speedPace: Int?
-    // Cascade delete: removing the user also removes all their plans (and via Plan's cascade, their activities)
-    @Relationship(deleteRule: .cascade, inverse: \Plan.user)
-    var plans: [Plan] = []
+struct User: Codable {
+    let userId: UUID
+    let firstName: String
+    let lastName: String
+    let profilePhotoUrl: String?
+    let defaultDistanceUnit: DistanceUnit?
+    let easyPace: Int?
+    let longRunPace: Int?
+    let speedPace: Int?
+    let createdAt: Date
+    let firebaseUid: String?
 
-    init(firstName: String, lastName: String) {
-        self.firstName = firstName
-        self.lastName = lastName
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case firstName = "first_name"
+        case lastName = "last_name"
+        case profilePhotoUrl = "profile_photo_url"
+        case defaultDistanceUnit = "default_distance_unit"
+        case easyPace = "easy_pace"
+        case longRunPace = "long_run_pace"
+        case speedPace = "speed_pace"
+        case createdAt = "created_at"
+        case firebaseUid = "firebase_uid"
     }
 }

@@ -80,7 +80,7 @@ struct ActivityDetailCard: View {
                     .font(.headline)
                 // Time sits directly after the name; shown only if the user set one
                 if let time = activity.time {
-                    Text(time, format: .dateTime.hour().minute())
+                    Text(time)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -112,16 +112,6 @@ struct ActivityDetailCard: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(tag.color.opacity(0.85))
-                            .clipShape(Capsule())
-                    }
-                    if let plan = activity.plan {
-                        Text(plan.name)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.appAccent.opacity(0.85))
                             .clipShape(Capsule())
                     }
                     if let pace = activity.pace, let unit = activity.distanceUnit {
@@ -160,5 +150,27 @@ struct ActivityDetailCard: View {
         case .rockClimb: return "figure.climbing"
         case .other: return "star"
         }
+    }
+}
+
+#Preview {
+    let sampleActivity = Activity(
+        activityId: UUID(),
+        planId: nil,
+        name: "Morning Run",
+        date: .now,
+        time: "7:30 AM",
+        type: .run,
+        notes: "Easy effort, felt good.",
+        distance: 8.0,
+        distanceUnit: .km,
+        pace: 330,
+        paceTag: .easy,
+        duration: nil,
+        createdAt: .now,
+        userId: UUID()
+    )
+    NavigationStack {
+        DayView(date: .now, activities: [sampleActivity])
     }
 }

@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "GoogleG_FullColor_RGB.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

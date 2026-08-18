@@ -6,11 +6,10 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct HomeView: View {
-    // @Query fetches all activities from SwiftData and keeps the list in sync with any changes
-    @Query private var activities: [Activity]
+    // Populated from the API once data loading is wired in
+    @State private var activities: [Activity] = []
     @State private var showNewActivity = false
     @State private var showNewPlan = false
     @State private var showProfile = false
@@ -20,11 +19,9 @@ struct HomeView: View {
 
     private var week: WeekNavigator { WeekNavigator(offset: weekOffset) }
 
-    // Returns activities for a given day, sorted by time (no-time activities go last)
+    // Returns activities for a given day
     private func activitiesFor(date: Date) -> [Activity] {
-        activities
-            .filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
-            .sorted { ($0.time ?? .distantFuture) < ($1.time ?? .distantFuture) }
+        activities.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
     }
 
     var body: some View {
@@ -189,7 +186,7 @@ struct DayRowView: View {
                             .font(.subheadline)
                         Spacer()
                         if let time = activity.time {
-                            Text(time, format: .dateTime.hour().minute())
+                            Text(time)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -223,7 +220,5 @@ struct DayRowView: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Activity.self, Plan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    return HomeView()
-        .modelContainer(container)
+    HomeView()
 }
