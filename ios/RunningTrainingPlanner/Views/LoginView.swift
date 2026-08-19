@@ -254,9 +254,13 @@ struct LoginView: View {
     // MARK: - Backend user creation
 
     // Creates a user record in the backend after Firebase sign-up completes.
-    // TODO: Implement this once email is added to the backend schema.
+    // firebase_uid is extracted from the auth token server-side, so only name fields are needed here.
     private func createBackendUser(firebaseUid: String, firstName: String, lastName: String, email: String) async {
-        // TODO: POST /users with firebaseUid, firstName, lastName, email
+        do {
+            try await APIService.createUser(firstName: firstName, lastName: lastName)
+        } catch {
+            // Non-fatal — Firebase account still exists; backend record can be retried later
+        }
     }
 
     // MARK: - Apple Sign-In nonce helpers

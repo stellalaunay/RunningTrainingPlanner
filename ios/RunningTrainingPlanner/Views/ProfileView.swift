@@ -6,10 +6,29 @@
 import SwiftUI
 import PhotosUI
 
-// TODO: Receive the logged-in User from the API and pass it to ProfileFormView
 struct ProfileView: View {
+    @State private var user: User? = nil
+    @State private var loadFailed = false
+
     var body: some View {
-        ContentUnavailableView("Profile", systemImage: "person.circle", description: Text("Profile will load once the API is connected."))
+        Group {
+            if let user = user {
+                ProfileFormView(user: user)
+            } else if loadFailed {
+                // Shown if the fetch errors — e.g. backend is down or user record doesn't exist yet
+                ContentUnavailableView("Profile unavailable", systemImage: "person.circle",
+                    description: Text("Could not load your profile. Check your connection and try again."))
+            } else {
+                ProgressView()
+            }
+        }
+        .task {
+            do {
+                user = try await APIService.fetchMyProfile()
+            } catch {
+                loadFailed = true
+            }
+        }
     }
 }
 
@@ -259,8 +278,21 @@ struct ProfileFormView: View {
     }
 
     private func saveProfile() {
-        // TODO: PUT updated profile to API
-        dismiss()
+        Task {
+            do {
+                _ = try await APIService.updateProfile(
+                    firstName: firstName,
+                    lastName: lastName,
+                    defaultDistanceUnit: defaultDistanceUnit,
+                    easyPace: currentEasyPace,
+                    longRunPace: currentLongRunPace,
+                    speedPace: currentSpeedPace
+                )
+                dismiss()
+            } catch {
+                // TODO: surface error to user
+            }
+        }
     }
 }
 

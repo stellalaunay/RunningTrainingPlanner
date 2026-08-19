@@ -29,6 +29,8 @@ struct RunningTrainingPlannerApp: App {
     // Tracks the active tab; tab 2 is intercepted to show the add sheet instead
     @State private var selectedTab = 0
     @State private var showAddSheet = false
+    // Incremented when the add-activity sheet dismisses so HomeView reloads
+    @State private var homeRefreshTrigger = 0
 
     init() {
         // Skip Firebase setup when Xcode is rendering a SwiftUI preview — it crashes the preview host
@@ -53,7 +55,7 @@ struct RunningTrainingPlannerApp: App {
                             }
                         }
                     )) {
-                        HomeView()
+                        HomeView(refreshTrigger: homeRefreshTrigger)
                             .tabItem { Label("Home", systemImage: "house") }
                             .tag(0)
                         ExploreView()
@@ -77,6 +79,10 @@ struct RunningTrainingPlannerApp: App {
                         }
                         // Suppress any internal animation when the sheet content appears
                         .transaction { $0.animation = nil }
+                    }
+                    .onChange(of: showAddSheet) { _, isShowing in
+                        // When the sheet closes, tell HomeView to reload its week
+                        if !isShowing { homeRefreshTrigger += 1 }
                     }
                 } else {
                     LoginView(authManager: authManager)

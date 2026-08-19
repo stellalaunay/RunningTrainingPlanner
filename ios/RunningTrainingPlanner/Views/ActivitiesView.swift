@@ -6,9 +6,8 @@
 import SwiftUI
 
 struct ActivitiesView: View {
-    // Sample data for UI development — replaced by API fetch once wired
-    @State private var activities: [Activity] = SampleData.activities
-    @State private var plans: [Plan] = SampleData.plans
+    @State private var activities: [Activity] = []
+    @State private var plans: [Plan] = []
     // false = Activities list, true = Plans list
     @State private var showingPlans = false
 
@@ -49,6 +48,17 @@ struct ActivitiesView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                do {
+                    // Fetch activities and plans concurrently
+                    async let fetchedActivities = APIService.fetchMyActivities()
+                    async let fetchedPlans = APIService.fetchMyPlans()
+                    activities = try await fetchedActivities
+                    plans = try await fetchedPlans
+                } catch {
+                    // Lists stay empty if fetch fails
+                }
+            }
             .toolbar {
                 // Segmented picker in the nav bar center — switches between the two lists
                 ToolbarItem(placement: .principal) {

@@ -8,8 +8,10 @@
 import SwiftUI
 
 struct HomeView: View {
-    // Sample data for UI development — replaced by API fetch once wired
-    @State private var activities: [Activity] = SampleData.activities
+    // Incremented by the app when the add-activity sheet is dismissed, triggering a reload
+    var refreshTrigger: Int = 0
+    @State private var activities: [Activity] = []
+    @State private var isLoading = false
     @State private var showNewActivity = false
     @State private var showNewPlan = false
     @State private var showProfile = false
@@ -18,6 +20,17 @@ struct HomeView: View {
     @State private var weekOffset: Int = 0
 
     private var week: WeekNavigator { WeekNavigator(offset: weekOffset) }
+
+    private func loadWeekActivities() async {
+        guard let monday = week.dates.first, let sunday = week.dates.last else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            activities = try await APIService.fetchWeekActivities(monday: monday, sunday: sunday)
+        } catch {
+            // Silently fails — shows empty days rather than blocking the UI
+        }
+    }
 
     // Returns activities for a given day
     private func activitiesFor(date: Date) -> [Activity] {
@@ -146,6 +159,8 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView()
             }
+            // Reloads when the week changes OR when the add-activity sheet dismisses (refreshTrigger increments)
+            .task(id: weekOffset * 1_000_000 + refreshTrigger) { await loadWeekActivities() }
         }
     }
 }

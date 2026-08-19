@@ -105,8 +105,21 @@ struct NewPlanView: View {
         }
     }
     private func savePlan() {
-        // TODO: POST plan to API
-        dismiss()
+        guard let distance = goalDistance else { return }
+        let totalSeconds = goalHours * 3600 + goalMinutes * 60 + goalSeconds
+        Task {
+            do {
+                _ = try await APIService.createPlan(
+                    name: name,
+                    distance: distance,
+                    raceDate: raceDate,
+                    goalTimeSeconds: totalSeconds > 0 ? totalSeconds : nil
+                )
+                dismiss()
+            } catch {
+                // TODO: show error to user
+            }
+        }
     }
 
 }

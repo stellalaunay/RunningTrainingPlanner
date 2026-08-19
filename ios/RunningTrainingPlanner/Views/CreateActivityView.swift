@@ -32,6 +32,7 @@ struct CreateActivityView: View {
 
     @State private var showDiscardAlert = false
     @State private var showDeleteAlert = false
+    @State private var isSaving = false
 
     // Both required fields must be filled; guards against whitespace-only names.
     private var isFormValid: Bool {
@@ -262,7 +263,7 @@ struct CreateActivityView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
             .padding(.bottom)
-            .disabled(!canSave)
+            .disabled(!canSave || isSaving)
         }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -298,7 +299,7 @@ struct CreateActivityView: View {
                         Image(systemName: "checkmark")
                             .fontWeight(.semibold)
                     }
-                    .disabled(!canSave)
+                    .disabled(!canSave || isSaving)
                 }
             }
         }
@@ -314,16 +315,72 @@ struct CreateActivityView: View {
         } message: {
             Text("This will permanently delete \"\(activity?.name ?? "this activity")\". This action cannot be undone.")
         }
+        // Loads the user's plans so the plan picker appears if any exist
+        .task {
+            do {
+                plans = try await APIService.fetchMyPlans()
+            } catch {
+                // Plan picker stays hidden if fetch fails
+            }
+        }
     }
 
     private func saveActivity() {
-        // TODO: POST/PUT activity to API
-        dismiss()
+        guard let type = selectedType else { return }
+        let paceTotal: Int? = (paceMinutes > 0 || paceSeconds > 0) ? paceMinutes * 60 + paceSeconds : nil
+        let timeStr: String? = time.map { APIService.timeString(from: $0) }
+        let notesStr: String? = notes.isEmpty ? nil : notes
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            do {
+                if let existing = activity {
+                    // Edit mode — update the existing activity
+                    _ = try await APIService.updateActivity(
+                        id: existing.activityId,
+                        name: name,
+                        date: date,
+                        type: type,
+                        time: timeStr,
+                        notes: notesStr,
+                        distance: distance,
+                        distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
+                        pace: type == .run ? paceTotal : nil,
+                        paceTag: type == .run ? selectedPaceTag : nil,
+                        duration: type == .rockClimb ? duration : nil
+                    )
+                } else {
+                    // Create mode — post a new activity
+                    _ = try await APIService.createActivity(
+                        name: name,
+                        date: date,
+                        type: type,
+                        time: timeStr,
+                        notes: notesStr,
+                        distance: distance,
+                        distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
+                        pace: type == .run ? paceTotal : nil,
+                        paceTag: type == .run ? selectedPaceTag : nil,
+                        duration: type == .rockClimb ? duration : nil
+                    )
+                }
+                dismiss()
+            } catch {
+                // TODO: surface error to user
+            }
+        }
     }
 
     private func deleteActivity() {
-        // TODO: DELETE activity via API
-        dismiss()
+        guard let existing = activity else { return }
+        Task {
+            do {
+                try await APIService.deleteActivity(id: existing.activityId)
+                dismiss()
+            } catch {
+                // TODO: surface error to user
+            }
+        }
     }
 
 }
