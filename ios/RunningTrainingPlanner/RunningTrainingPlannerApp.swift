@@ -26,8 +26,9 @@ final class AuthManager {
 @main
 struct RunningTrainingPlannerApp: App {
     @State private var authManager = AuthManager()
-    // Tracks the active tab; tab 2 is intercepted to show the add sheet instead
     @State private var selectedTab = 0
+    // Remembers which tab was active when + was tapped, so we can return there after the sheet closes
+    @State private var previousTab = 0
     @State private var showAddSheet = false
     // Incremented when the add-activity sheet dismisses so HomeView reloads
     @State private var homeRefreshTrigger = 0
@@ -42,26 +43,14 @@ struct RunningTrainingPlannerApp: App {
         WindowGroup {
             Group {
                 if authManager.isLoggedIn {
-                    // Custom binding intercepts tab 2 before it's set, so the tab never visually selects
-                    TabView(selection: Binding(
-                        get: { selectedTab },
-                        set: { newTab in
-                            withTransaction(Transaction(animation: nil)) {
-                                if newTab == 2 {
-                                    showAddSheet = true
-                                } else {
-                                    selectedTab = newTab
-                                }
-                            }
-                        }
-                    )) {
+                    TabView(selection: $selectedTab) {
                         HomeView(refreshTrigger: homeRefreshTrigger)
                             .tabItem { Label("Home", systemImage: "house") }
                             .tag(0)
-                        ExploreView()
-                            .tabItem { Label("Explore", systemImage: "binoculars") }
+                        PlansView()
+                            .tabItem { Label("Plans", systemImage: "list.bullet.clipboard") }
                             .tag(1)
-                        // This tab's content is never shown — tapping it triggers the add sheet
+                        // Content never shown — tapping opens the add sheet, then tab returns to previousTab
                         Color.clear
                             .tabItem { Label("New Activity", systemImage: "plus.circle.fill") }
                             .tag(2)
@@ -72,17 +61,25 @@ struct RunningTrainingPlannerApp: App {
                             .tabItem { Label("Profile", systemImage: "person") }
                             .tag(4)
                     }
-                    .animation(nil, value: selectedTab)
+                    .onChange(of: selectedTab) { _, newTab in
+                        if newTab == 2 {
+                            // Don't update previousTab — keep it pointing at the tab the user was on
+                            showAddSheet = true
+                        } else {
+                            previousTab = newTab
+                        }
+                    }
                     .sheet(isPresented: $showAddSheet) {
                         NavigationStack {
-                            CreateActivityView()
+                            CreateActivityView(isModal: true)
                         }
-                        // Suppress any internal animation when the sheet content appears
-                        .transaction { $0.animation = nil }
                     }
                     .onChange(of: showAddSheet) { _, isShowing in
-                        // When the sheet closes, tell HomeView to reload its week
-                        if !isShowing { homeRefreshTrigger += 1 }
+                        if !isShowing {
+                            // Return to the tab that was active before + was tapped, and reload HomeView
+                            selectedTab = previousTab
+                            homeRefreshTrigger += 1
+                        }
                     }
                 } else {
                     LoginView(authManager: authManager)

@@ -28,11 +28,13 @@ struct CreateActivityView: View {
     @State private var selectedPaceTag: PaceTag?
     @State private var showPacePicker = false
     @State private var selectedPlan: Plan?
-    @State private var duration: Int
+    @State private var duration: Int?
 
+    @State private var isPublic: Bool
     @State private var showDiscardAlert = false
     @State private var showDeleteAlert = false
     @State private var isSaving = false
+    @State private var errorMessage: String? = nil
 
     // Both required fields must be filled; guards against whitespace-only names.
     private var isFormValid: Bool {
@@ -53,7 +55,9 @@ struct CreateActivityView: View {
                distanceUnit != (a.distanceUnit ?? .miles) ||
                currentPace != a.pace ||
                selectedPaceTag != a.paceTag ||
-               duration != (a.duration ?? 10)
+               duration != a.duration ||
+               selectedPlan?.planId != a.planId ||
+               isPublic != a.isPublic
     }
 
     // In edit mode the button is only active when there's something to save
@@ -61,9 +65,16 @@ struct CreateActivityView: View {
         isEditMode ? (isFormValid && isModified) : isFormValid
     }
 
+    // True when the view is presented as a sheet (tab bar +); shows a Cancel button instead of relying on the system back arrow
+    let isModal: Bool
+    // Called after a successful edit save when the activity's date moved to a different day
+    let onDateChanged: ((Date) -> Void)?
+
     // Creation mode: only initialDate is needed; all other fields start empty/default.
     // Edit mode: pre-fills every field from the existing activity.
-    init(initialDate: Date = .now, activity: Activity? = nil) {
+    init(initialDate: Date = .now, activity: Activity? = nil, isModal: Bool = false, onDateChanged: ((Date) -> Void)? = nil) {
+        self.isModal = isModal
+        self.onDateChanged = onDateChanged
         self.activity = activity
         if let a = activity {
             _name = State(initialValue: a.name)
@@ -74,8 +85,9 @@ struct CreateActivityView: View {
             _distance = State(initialValue: a.distance)
             _distanceUnit = State(initialValue: a.distanceUnit ?? .miles)
             _selectedPaceTag = State(initialValue: a.paceTag)
-            _selectedPlan = State(initialValue: nil) // plan linking not wired yet
-            _duration = State(initialValue: a.duration ?? 10)
+            _selectedPlan = State(initialValue: nil) // pre-filled after plans load in .task
+            _isPublic = State(initialValue: a.isPublic)
+            _duration = State(initialValue: a.duration)
             let totalPace = a.pace ?? 0
             _paceMinutes = State(initialValue: totalPace / 60)
             _paceSeconds = State(initialValue: totalPace % 60)
@@ -89,7 +101,8 @@ struct CreateActivityView: View {
             _distanceUnit = State(initialValue: .miles)
             _selectedPaceTag = State(initialValue: nil)
             _selectedPlan = State(initialValue: nil)
-            _duration = State(initialValue: 10)
+            _isPublic = State(initialValue: false)
+            _duration = State(initialValue: nil)
             _paceMinutes = State(initialValue: 0)
             _paceSeconds = State(initialValue: 0)
         }
@@ -209,10 +222,11 @@ struct CreateActivityView: View {
 
                 // Duration picker — only shown for rock climbing
                 if selectedType == .rockClimb {
-                    // stride generates values from 10 to 300 in steps of 10 (10, 20, 30 ... 300)
                     Picker("Duration", selection: $duration) {
+                        Text("Not set").tag(nil as Int?)
+                        // stride generates values from 10 to 300 in steps of 10 (10, 20, 30 ... 300)
                         ForEach(Array(stride(from: 10, through: 300, by: 10)), id: \.self) { min in
-                            Text("\(min) min").tag(min)
+                            Text("\(min) min").tag(min as Int?)
                         }
                     }
                 }
@@ -235,6 +249,7 @@ struct CreateActivityView: View {
             Section {
                 // axis: .vertical makes the field grow downward as the user types more text
                 TextField("Notes", text: $notes, axis: .vertical)
+                Toggle("Make public", isOn: $isPublic)
             }
 
         }
@@ -275,7 +290,12 @@ struct CreateActivityView: View {
                     .font(.title)
                     .fontWeight(.bold)
             }
-            if isEditMode && isModified {
+            if isModal && !isEditMode {
+                // Cancel button — only shown when opened as a sheet from the tab bar
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            } else if isModified {
                 // Custom back button shown only in edit mode when there are unsaved changes
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
@@ -283,11 +303,6 @@ struct CreateActivityView: View {
                     } label: {
                         Image(systemName: "chevron.left")
                     }
-                }
-            } else if !isEditMode {
-                // Cancel button in create mode — dismisses the sheet or pops the navigation stack
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
                 }
             }
             // Checkmark save button — only visible in edit mode when there's something to save
@@ -299,6 +314,7 @@ struct CreateActivityView: View {
                         Image(systemName: "checkmark")
                             .fontWeight(.semibold)
                     }
+                    .tint(canSave ? Color.appAccent : nil)
                     .disabled(!canSave || isSaving)
                 }
             }
@@ -315,10 +331,23 @@ struct CreateActivityView: View {
         } message: {
             Text("This will permanently delete \"\(activity?.name ?? "this activity")\". This action cannot be undone.")
         }
+        // Error alert — shown when save or delete fails
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
         // Loads the user's plans so the plan picker appears if any exist
         .task {
             do {
                 plans = try await APIService.fetchMyPlans()
+                // Pre-fill the plan picker in edit mode
+                if let planId = activity?.planId {
+                    selectedPlan = plans.first { $0.planId == planId }
+                }
             } catch {
                 // Plan picker stays hidden if fetch fails
             }
@@ -341,32 +370,41 @@ struct CreateActivityView: View {
                         name: name,
                         date: date,
                         type: type,
+                        // If plans failed to load, the picker was never shown — preserve the existing plan association
+                        planId: plans.isEmpty ? activity?.planId : selectedPlan?.planId,
                         time: timeStr,
                         notes: notesStr,
                         distance: distance,
                         distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
                         pace: type == .run ? paceTotal : nil,
                         paceTag: type == .run ? selectedPaceTag : nil,
-                        duration: type == .rockClimb ? duration : nil
+                        duration: type == .rockClimb ? duration : nil,
+                        isPublic: isPublic
                     )
+                    // Notify the caller if the activity moved to a different day
+                    if !Calendar.current.isDate(date, inSameDayAs: existing.date) {
+                        onDateChanged?(date)
+                    }
                 } else {
                     // Create mode — post a new activity
                     _ = try await APIService.createActivity(
                         name: name,
                         date: date,
                         type: type,
+                        planId: selectedPlan?.planId,
                         time: timeStr,
                         notes: notesStr,
                         distance: distance,
                         distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
                         pace: type == .run ? paceTotal : nil,
                         paceTag: type == .run ? selectedPaceTag : nil,
-                        duration: type == .rockClimb ? duration : nil
+                        duration: type == .rockClimb ? duration : nil,
+                        isPublic: isPublic
                     )
                 }
                 dismiss()
             } catch {
-                // TODO: surface error to user
+                errorMessage = "Could not save activity. Please check your connection and try again."
             }
         }
     }
@@ -378,7 +416,7 @@ struct CreateActivityView: View {
                 try await APIService.deleteActivity(id: existing.activityId)
                 dismiss()
             } catch {
-                // TODO: surface error to user
+                errorMessage = "Could not delete activity. Please check your connection and try again."
             }
         }
     }

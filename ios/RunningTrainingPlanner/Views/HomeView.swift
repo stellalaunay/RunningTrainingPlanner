@@ -12,10 +12,7 @@ struct HomeView: View {
     var refreshTrigger: Int = 0
     @State private var activities: [Activity] = []
     @State private var isLoading = false
-    @State private var showNewActivity = false
-    @State private var showNewPlan = false
-    @State private var showProfile = false
-    @State private var showAddMenu = false
+    @State private var loadFailed = false
     // 0 = this week, -1 = last week, +1 = next week, etc.
     @State private var weekOffset: Int = 0
 
@@ -24,11 +21,12 @@ struct HomeView: View {
     private func loadWeekActivities() async {
         guard let monday = week.dates.first, let sunday = week.dates.last else { return }
         isLoading = true
+        loadFailed = false
         defer { isLoading = false }
         do {
             activities = try await APIService.fetchWeekActivities(monday: monday, sunday: sunday)
         } catch {
-            // Silently fails — shows empty days rather than blocking the UI
+            loadFailed = true
         }
     }
 
@@ -73,52 +71,19 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain) // prevents the NavigationLink from applying its own blue tint
                     }
+
+                    // Shown below the day cards when the fetch fails
+                    if loadFailed {
+                        Text("Couldn't load activities. Check your connection.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
+                    }
                 }
                 .padding()
             }
             .navigationBarTitleDisplayMode(.inline)
-            // Custom dropdown menu — shown when the + button is tapped
-            .overlay(alignment: .topLeading) {
-                if showAddMenu {
-                    ZStack(alignment: .topLeading) {
-                        // Invisible full-screen tap area — tapping outside the menu closes it
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .ignoresSafeArea()
-                            .onTapGesture {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    showAddMenu = false
-                                }
-                            }
-                        // Menu container
-                        VStack(alignment: .leading, spacing: 0) {
-                            Button {
-                                withAnimation(.easeOut(duration: 0.2)) { showAddMenu = false }
-                                showNewActivity = true
-                            } label: {
-                                Text("New Activity")
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                            }
-                            Divider()
-                            Button {
-                                withAnimation(.easeOut(duration: 0.2)) { showAddMenu = false }
-                                showNewPlan = true
-                            } label: {
-                                Text("New Plan")
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                            }
-                        }
-                        .fixedSize() // shrinks the container to fit its content instead of expanding to fill the screen
-                        .background(Color(.systemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.leading, 16)
-                        .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity)) // slides down + fades in when appearing
-                    }
-                }
-            }
             // Swipe left to advance to the next week, swipe right to go back
             .gesture(
                 DragGesture(minimumDistance: 50)
@@ -130,37 +95,10 @@ struct HomeView: View {
                         }
                     }
             )
-            .toolbar {
-                // + button on the left — toggles the dropdown menu
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            showAddMenu.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-                // Profile button on the right (placeholder)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showProfile = true
-                    } label: {
-                        Image(systemName: "person")
-                    }
-                }
-            }
-            .navigationDestination(isPresented: $showNewActivity) {
-                CreateActivityView()
-            }
-            .navigationDestination(isPresented: $showNewPlan) {
-                NewPlanView()
-            }
-            .navigationDestination(isPresented: $showProfile) {
-                ProfileView()
-            }
-            // Reloads when the week changes OR when the add-activity sheet dismisses (refreshTrigger increments)
-            .task(id: weekOffset * 1_000_000 + refreshTrigger) { await loadWeekActivities() }
+            // Reloads on appear (including returning from DayView), week navigation, and tab sheet dismissal
+            .onAppear { Task { await loadWeekActivities() } }
+            .onChange(of: weekOffset) { _, _ in Task { await loadWeekActivities() } }
+            .onChange(of: refreshTrigger) { _, _ in Task { await loadWeekActivities() } }
         }
     }
 }
@@ -200,7 +138,7 @@ struct DayRowView: View {
                         Text(activity.name)
                             .font(.subheadline)
                         Spacer()
-                        if let time = activity.time {
+                        if let time = activity.formattedTime {
                             Text(time)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)

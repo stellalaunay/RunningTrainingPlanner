@@ -10,6 +10,7 @@
 		2EE7FD5130312A5000D0A099 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7FD5030312A5000D0A099 /* FirebaseAuth */; };
 		2EE7FD543033CCFE00D0A099 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7FD533033CCFE00D0A099 /* GoogleSignIn */; };
 		2EE7FD563033CCFE00D0A099 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7FD553033CCFE00D0A099 /* GoogleSignInSwift */; };
+		2EE7FDCD3037ABC700D0A099 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 2EE7FDCC3037ABC700D0A099 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +73,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2EE7FD563033CCFE00D0A099 /* GoogleSignInSwift in Frameworks */,
+				2EE7FDCD3037ABC700D0A099 /* FirebaseStorage in Frameworks */,
 				2EE7FD5130312A5000D0A099 /* FirebaseAuth in Frameworks */,
 				2EE7FD543033CCFE00D0A099 /* GoogleSignIn in Frameworks */,
 			);
@@ -100,6 +102,7 @@
 				2EC30BC230196558007D5D79 /* RunningTrainingPlanner */,
 				2EC30BD030196559007D5D79 /* RunningTrainingPlannerTests */,
 				2EC30BDA30196559007D5D79 /* RunningTrainingPlannerUITests */,
+				2EE7FDCB3037ABC700D0A099 /* Frameworks */,
 				2EC30BC130196558007D5D79 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -112,6 +115,13 @@
 				2EC30BD730196559007D5D79 /* RunningTrainingPlannerUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2EE7FDCB3037ABC700D0A099 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -137,6 +147,7 @@
 				2EE7FD5030312A5000D0A099 /* FirebaseAuth */,
 				2EE7FD533033CCFE00D0A099 /* GoogleSignIn */,
 				2EE7FD553033CCFE00D0A099 /* GoogleSignInSwift */,
+				2EE7FDCC3037ABC700D0A099 /* FirebaseStorage */,
 			);
 			productName = RunningTrainingPlanner;
 			productReference = 2EC30BC030196558007D5D79 /* RunningTrainingPlanner.app */;
@@ -640,6 +651,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2EE7FD523033CCFE00D0A099 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		2EE7FDCC3037ABC700D0A099 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2EE7FD4F30312A5000D0A099 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

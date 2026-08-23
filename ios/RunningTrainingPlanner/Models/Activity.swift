@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 
 enum ActivityType: String, Codable, CaseIterable {
@@ -49,6 +48,23 @@ enum PaceTag: String, Codable, CaseIterable {
 }
 
 struct Activity: Codable, Identifiable {
+    // Converts the backend time string ("19:00" or "19:00:37") to a readable format ("7:00 PM")
+    var formattedTime: String? {
+        guard let time = time else { return nil }
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        for format in ["HH:mm:ss", "HH:mm"] {
+            parser.dateFormat = format
+            if let date = parser.date(from: time) {
+                parser.dateFormat = "h:mm a"
+                parser.locale = Locale.current
+                return parser.string(from: date)
+            }
+        }
+        return time
+    }
+
+
     var id: UUID { activityId }
     let activityId: UUID
     let planId: UUID?
@@ -64,7 +80,10 @@ struct Activity: Codable, Identifiable {
     let duration: Int?
     let createdAt: Date
     let userId: UUID
-    
+    let isPublic: Bool
+    let planName: String?
+    let planColor: String?
+
     enum CodingKeys: String, CodingKey {
         case activityId = "activity_id"
         case planId = "plan_id"
@@ -80,5 +99,8 @@ struct Activity: Codable, Identifiable {
         case duration
         case createdAt = "created_at"
         case userId = "user_id"
+        case isPublic = "is_public"
+        case planName = "plan_name"
+        case planColor = "plan_color"
     }
 }

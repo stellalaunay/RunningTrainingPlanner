@@ -5,31 +5,119 @@
 
 import SwiftUI
 
+// The four supported race distances. Distances are always stored in km.
+enum RaceDistance: CaseIterable {
+    case fiveK, tenK, halfMarathon, marathon
+
+    var label: String {
+        switch self {
+        case .fiveK: return "5K"
+        case .tenK: return "10K"
+        case .halfMarathon: return "Half Marathon"
+        case .marathon: return "Marathon"
+        }
+    }
+
+    var distanceKm: Double {
+        switch self {
+        case .fiveK: return 5.0
+        case .tenK: return 10.0
+        case .halfMarathon: return 21.0975
+        case .marathon: return 42.195
+        }
+    }
+
+    // Maps a stored distance label (e.g. "Marathon") back to a RaceDistance case
+    static func from(label: String) -> RaceDistance? {
+        allCases.first { $0.label == label }
+    }
+}
+
 struct NewPlanView: View {
     @Environment(\.dismiss) private var dismiss
 
-    // @State variables are local to this view — when their value changes, SwiftUI automatically re-renders the UI.
-    @State private var name: String = ""
-    @State private var goalDistance: Double? = nil
-    @State private var goalHours: Int = 0
-    @State private var goalMinutes: Int = 0
-    @State private var goalSeconds: Int = 0
-    @State private var showGoalTimePicker = false
-    @State private var raceDate: Date = Date.now
+    // When non-nil, the view is in edit mode and will update this plan instead of creating a new one
+    let plan: Plan?
+
+    @State private var name: String
+    @State private var selectedRace: RaceDistance?
+    @State private var goalHours: Int
+    @State private var goalMinutes: Int
+    @State private var goalSeconds: Int
+    @State private var showGoalTimePicker: Bool
+    @State private var raceDate: Date
+
+    @State private var isPublic: Bool
+    @State private var selectedColor: String
+    @State private var showDiscardAlert = false
+    @State private var showDeleteAlert = false
+    @State private var isSaving = false
+    @State private var errorMessage: String? = nil
+
+    private var isEditMode: Bool { plan != nil }
 
     // Both required fields must be filled; guards against whitespace-only names.
     private var isFormValid: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty && goalDistance != nil
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && selectedRace != nil
+    }
+
+    // True when any field differs from the saved plan — only relevant in edit mode
+    private var isModified: Bool {
+        guard let p = plan else { return false }
+        let currentGoalSeconds = goalHours * 3600 + goalMinutes * 60 + goalSeconds
+        return name != p.name ||
+               selectedRace != RaceDistance.from(label: p.distance) ||
+               raceDate != p.raceDate ||
+               currentGoalSeconds != (p.goalTimeSeconds ?? 0) ||
+               isPublic != (p.isPublic ?? false) ||
+               selectedColor != p.planColor
+    }
+
+    // In edit mode the button is only active when there's something to save
+    private var canSave: Bool {
+        isEditMode ? (isFormValid && isModified) : isFormValid
+    }
+
+    // Creation mode: blank form. Edit mode: pre-filled from the existing plan.
+    init(plan: Plan? = nil) {
+        self.plan = plan
+        if let p = plan {
+            _name = State(initialValue: p.name)
+            _selectedRace = State(initialValue: RaceDistance.from(label: p.distance))
+            _raceDate = State(initialValue: p.raceDate)
+            let totalSeconds = p.goalTimeSeconds ?? 0
+            _goalHours = State(initialValue: totalSeconds / 3600)
+            _goalMinutes = State(initialValue: (totalSeconds % 3600) / 60)
+            _goalSeconds = State(initialValue: totalSeconds % 60)
+            _isPublic = State(initialValue: p.isPublic ?? false)
+            _selectedColor = State(initialValue: p.planColor)
+            _showGoalTimePicker = State(initialValue: false)
+        } else {
+            _name = State(initialValue: "")
+            _selectedRace = State(initialValue: nil)
+            _raceDate = State(initialValue: Date.now)
+            _goalHours = State(initialValue: 0)
+            _goalMinutes = State(initialValue: 0)
+            _goalSeconds = State(initialValue: 0)
+            _isPublic = State(initialValue: false)
+            _selectedColor = State(initialValue: "#808080")
+            _showGoalTimePicker = State(initialValue: false)
+        }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                // First section
+                // Name and race type section
                 Section {
                     TextField("Plan name", text: $name)
-                    TextField("Distance", value: $goalDistance, format: .number)
-                        .keyboardType(.decimalPad)
+                    // Race distance picker — replaces free-form distance entry
+                    Picker("Race distance", selection: $selectedRace) {
+                        Text("Select distance").tag(nil as RaceDistance?)
+                        ForEach(RaceDistance.allCases, id: \.self) { race in
+                            Text(race.label).tag(race as RaceDistance?)
+                        }
+                    }
                 }
 
                 // Race date section
@@ -40,22 +128,18 @@ struct NewPlanView: View {
                 // Goal time section
                 Section {
                     // Collapsible row — tapping the label shows/hides the pickers.
-                    // isExpanded: when showGoalTimePicker is true the pickers are visible; tapping the row flips it.
                     DisclosureGroup(
                         isExpanded: $showGoalTimePicker,
                         content: {
                             HStack {
                                 Spacer()
                                 Picker("Hours", selection: $goalHours) {
-                                    // $0 is the current number as ForEach counts 0–23.
-                                    // .tag sets the value saved to goalHours when that row is selected.
                                     ForEach(0..<24) { Text("\($0)h").tag($0) }
                                 }
                                 .pickerStyle(.wheel)
-                                .frame(width: 70) // keeps this column at a fixed narrow width
+                                .frame(width: 70)
                                 Text(":")
                                 Picker("Minutes", selection: $goalMinutes) {
-                                    // %02d zero-pads to two digits (e.g. 5 → "05")
                                     ForEach(0..<60) { Text(String(format: "%02d", $0)).tag($0) }
                                 }
                                 .pickerStyle(.wheel)
@@ -80,48 +164,170 @@ struct NewPlanView: View {
                         }
                     )
                 }
-            }
-            .contentMargins(.top, 20, for: .scrollContent) // space between top nav bar and first field
 
-            Button("Create Plan") {
-                savePlan()
+                // Plan color section — circles pulled from the active theme's palette
+                Section("Plan color") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(AppPalette.planColorOptions, id: \.self) { hex in
+                                Button {
+                                    selectedColor = hex
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color(hex: hex))
+                                            .frame(width: 30, height: 30)
+                                        // Border shows which color is selected
+                                        if selectedColor == hex {
+                                            Circle()
+                                                .strokeBorder(Color.primary, lineWidth: 2)
+                                                .frame(width: 30, height: 30)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
+                // Visibility section
+                Section {
+                    Toggle("Make public", isOn: $isPublic)
+                }
             }
+            .contentMargins(.top, 20, for: .scrollContent)
+
+            if isEditMode {
+                // Delete button — only visible when editing an existing plan
+                Button("Delete Plan", role: .destructive) {
+                    showDeleteAlert = true
+                }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isFormValid ? Color.appAccent : Color(.systemGray4))
+                .background(Color(.systemRed))
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
                 .padding(.bottom)
-                .disabled(!isFormValid) // prevents tapping when form is incomplete
+            } else {
+                Button("Create Plan") {
+                    savePlan()
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(canSave ? Color.appAccent : Color(.systemGray4))
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal)
+                .padding(.bottom)
+                .disabled(!canSave || isSaving)
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
+        // Hides the system back button when there are unsaved edits in edit mode
+        .navigationBarBackButtonHidden(isEditMode && isModified)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("New Run Plan")
+                Text(isEditMode ? "Edit Plan" : "New Run Plan")
                     .font(.title)
                     .fontWeight(.bold)
             }
+            if isEditMode && isModified {
+                // Custom back button shown only when there are unsaved changes
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showDiscardAlert = true
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                }
+            }
+            // Checkmark save button — only visible in edit mode
+            if isEditMode {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        savePlan()
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .fontWeight(.semibold)
+                    }
+                    .tint(canSave ? Color.appAccent : nil)
+                    .disabled(!canSave || isSaving)
+                }
+            }
+        }
+        .alert("Unsaved Changes", isPresented: $showDiscardAlert) {
+            Button("Keep Editing", role: .cancel) {}
+            Button("Discard Edits", role: .destructive) { dismiss() }
+        } message: {
+            Text("You have unsaved changes. Going back will discard them.")
+        }
+        .alert("Delete Plan", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deletePlan() }
+        } message: {
+            Text("This will permanently delete \"\(plan?.name ?? "this plan")\". This action cannot be undone.")
+        }
+        // Error alert — shown when save or delete fails
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
         }
     }
+
     private func savePlan() {
-        guard let distance = goalDistance else { return }
+        guard let race = selectedRace else { return }
         let totalSeconds = goalHours * 3600 + goalMinutes * 60 + goalSeconds
+        isSaving = true
         Task {
+            defer { isSaving = false }
             do {
-                _ = try await APIService.createPlan(
-                    name: name,
-                    distance: distance,
-                    raceDate: raceDate,
-                    goalTimeSeconds: totalSeconds > 0 ? totalSeconds : nil
-                )
+                if let existing = plan {
+                    // Edit mode — update the existing plan
+                    _ = try await APIService.updatePlan(
+                        id: existing.planId,
+                        name: name,
+                        distance: race.label,
+                        raceDate: raceDate,
+                        goalTimeSeconds: totalSeconds > 0 ? totalSeconds : nil,
+                        isPublic: isPublic,
+                        planColor: selectedColor
+                    )
+                } else {
+                    // Create mode — post a new plan
+                    _ = try await APIService.createPlan(
+                        name: name,
+                        distance: race.label,
+                        raceDate: raceDate,
+                        goalTimeSeconds: totalSeconds > 0 ? totalSeconds : nil,
+                        isPublic: isPublic,
+                        planColor: selectedColor
+                    )
+                }
                 dismiss()
             } catch {
-                // TODO: show error to user
+                errorMessage = "Could not save plan. Please check your connection and try again."
             }
         }
     }
 
+    private func deletePlan() {
+        guard let existing = plan else { return }
+        Task {
+            do {
+                try await APIService.deletePlan(id: existing.planId)
+                dismiss()
+            } catch {
+                errorMessage = "Could not delete plan. Please check your connection and try again."
+            }
+        }
+    }
 }
 
 #Preview {

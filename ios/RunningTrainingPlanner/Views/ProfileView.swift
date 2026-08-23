@@ -34,14 +34,17 @@ struct ProfileView: View {
 
 // The profile editing form — all fields are local copies until the user taps Save
 struct ProfileFormView: View {
-    let user: User
+    // Tracks what's actually saved on the backend — updated after each successful save
+    // so isModified resets correctly and the form reflects persisted values
+    @State private var savedUser: User
     @Environment(\.dismiss) private var dismiss
 
     // Local copies of all user fields — not written to the model until Save is tapped
     @State private var firstName: String
     @State private var lastName: String
     @State private var defaultDistanceUnit: DistanceUnit
-    @State private var profilePhotoData: Data?
+    @State private var profilePhotoData: Data?       // newly picked photo, not yet saved
+    @State private var savedPhotoUrl: String?         // URL of the photo currently saved on the backend
     @State private var selectedPhoto: PhotosPickerItem? = nil
 
     // Pace picker visibility
@@ -58,14 +61,17 @@ struct ProfileFormView: View {
     @State private var speedPaceSec: Int
 
     @State private var showDiscardAlert = false
+    @State private var showSavedBanner = false
+    @State private var errorMessage: String? = nil
 
     // Initialize all local state from the model so the form shows current saved values
     init(user: User) {
-        self.user = user
+        _savedUser = State(initialValue: user)
         _firstName = State(initialValue: user.firstName)
         _lastName = State(initialValue: user.lastName)
         _defaultDistanceUnit = State(initialValue: user.defaultDistanceUnit ?? .miles)
-        _profilePhotoData = State(initialValue: nil) // photo not stored in User model yet
+        _profilePhotoData = State(initialValue: nil)
+        _savedPhotoUrl = State(initialValue: user.profilePhotoUrl)
         _easyPaceMin = State(initialValue: user.easyPace.map { $0 / 60 } ?? 0)
         _easyPaceSec = State(initialValue: user.easyPace.map { $0 % 60 } ?? 0)
         _longRunPaceMin = State(initialValue: user.longRunPace.map { $0 / 60 } ?? 0)
@@ -79,14 +85,15 @@ struct ProfileFormView: View {
     private var currentLongRunPace: Int? { (longRunPaceMin > 0 || longRunPaceSec > 0) ? longRunPaceMin * 60 + longRunPaceSec : nil }
     private var currentSpeedPace: Int? { (speedPaceMin > 0 || speedPaceSec > 0) ? speedPaceMin * 60 + speedPaceSec : nil }
 
-    // True when any local field differs from the saved model — enables the Save button and back-button guard
+    // True when any local field differs from the last successfully saved values
     private var isModified: Bool {
-        firstName != user.firstName ||
-        lastName != user.lastName ||
-        defaultDistanceUnit != (user.defaultDistanceUnit ?? .miles) ||
-        currentEasyPace != user.easyPace ||
-        currentLongRunPace != user.longRunPace ||
-        currentSpeedPace != user.speedPace
+        firstName != savedUser.firstName ||
+        lastName != savedUser.lastName ||
+        defaultDistanceUnit != (savedUser.defaultDistanceUnit ?? .miles) ||
+        currentEasyPace != savedUser.easyPace ||
+        currentLongRunPace != savedUser.longRunPace ||
+        currentSpeedPace != savedUser.speedPace ||
+        profilePhotoData != nil
     }
 
     var body: some View {
@@ -98,13 +105,28 @@ struct ProfileFormView: View {
                         Spacer()
                         PhotosPicker(selection: $selectedPhoto, matching: .images) {
                             if let data = profilePhotoData, let uiImage = UIImage(data: data) {
+                                // Newly picked photo — shown before the user taps Save
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 100, height: 100)
                                     .clipShape(Circle())
+                            } else if let urlStr = savedPhotoUrl, let url = URL(string: urlStr) {
+                                // Previously saved photo loaded from Firebase Storage
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 100, height: 100)
+                                        .clipShape(Circle())
+                                } placeholder: {
+                                    Image(systemName: "person.circle.fill")
+                                        .resizable()
+                                        .frame(width: 100, height: 100)
+                                        .foregroundStyle(.secondary)
+                                }
                             } else {
-                                // Placeholder shown when no photo has been set
+                                // Placeholder shown when no photo has been saved
                                 Image(systemName: "person.circle.fill")
                                     .resizable()
                                     .frame(width: 100, height: 100)
@@ -132,8 +154,8 @@ struct ProfileFormView: View {
                     .pickerStyle(.segmented) // two-option segmented control instead of a dropdown
                 }
 
-                // Pace settings — one collapsible row per pace tag
-                Section(header: Text("Pace settings")) {
+                // Default pace settings — one collapsible row per pace tag
+                Section(header: Text("Default Pace Settings")) {
                     // Easy pace
                     DisclosureGroup(isExpanded: $showEasyPacePicker) {
                         HStack {
@@ -241,6 +263,22 @@ struct ProfileFormView: View {
             .padding(.bottom)
             .disabled(!isModified) // prevents tapping when nothing has changed
         }
+        // Green banner that slides down from the top and auto-hides after 2 seconds
+        .overlay(alignment: .top) {
+            if showSavedBanner {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Profile saved!")
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.green)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: showSavedBanner)
         .navigationTitle("Profile")
         // Hides the system back button (and disables swipe-back) when there are unsaved changes
         .navigationBarBackButtonHidden(isModified)
@@ -267,6 +305,15 @@ struct ProfileFormView: View {
         } message: {
             Text("You have unsaved changes. Going back will discard them.")
         }
+        // Error alert — shown when save fails
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
         .onChange(of: selectedPhoto) { _, item in
             // Load the selected photo into local state — not written to the model until Save is tapped
             Task {
@@ -280,17 +327,30 @@ struct ProfileFormView: View {
     private func saveProfile() {
         Task {
             do {
-                _ = try await APIService.updateProfile(
+                // If a new photo was picked, upload it to Firebase Storage and get the URL
+                var photoUrl: String? = nil
+                if let data = profilePhotoData,
+                   let uiImage = UIImage(data: data),
+                   let jpegData = uiImage.jpegData(compressionQuality: 0.8) {
+                    photoUrl = try await APIService.uploadProfilePhoto(jpegData)
+                }
+                let updated = try await APIService.updateProfile(
                     firstName: firstName,
                     lastName: lastName,
                     defaultDistanceUnit: defaultDistanceUnit,
                     easyPace: currentEasyPace,
                     longRunPace: currentLongRunPace,
-                    speedPace: currentSpeedPace
+                    speedPace: currentSpeedPace,
+                    profilePhotoUrl: photoUrl
                 )
-                dismiss()
+                savedUser = updated
+                savedPhotoUrl = updated.profilePhotoUrl
+                profilePhotoData = nil // photo is now persisted — clear local data
+                showSavedBanner = true
+                try? await Task.sleep(for: .seconds(2))
+                showSavedBanner = false
             } catch {
-                // TODO: surface error to user
+                errorMessage = "Could not save profile. Please check your connection and try again."
             }
         }
     }

@@ -6,6 +6,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseCore
+import FirebaseStorage
 
 // All backend API calls. Base URL points to the local FastAPI server.
 enum APIService {
@@ -16,14 +17,13 @@ enum APIService {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(secondsFromGMT: 0)
         return f
     }()
 
-    // Formats a Date as "HH:mm:ss" for backend time fields
+    // Formats a Date as "HH:mm" for backend time fields — seconds are not stored
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
+        f.dateFormat = "HH:mm"
         f.locale = Locale(identifier: "en_US_POSIX")
         return f
     }()
@@ -47,7 +47,6 @@ enum APIService {
             let dateOnly = DateFormatter()
             dateOnly.dateFormat = "yyyy-MM-dd"
             dateOnly.locale = Locale(identifier: "en_US_POSIX")
-            dateOnly.timeZone = TimeZone(secondsFromGMT: 0)
             if let date = dateOnly.date(from: str) { return date }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(str)")
         }
@@ -93,7 +92,7 @@ enum APIService {
     static func fetchWeekActivities(monday: Date, sunday: Date) async throws -> [Activity] {
         let start = dateFormatter.string(from: monday)
         let end = dateFormatter.string(from: sunday)
-        let req = try await request(path: "/activities/filter/week?start_date=\(start)&end_date=\(end)", method: "GET")
+        let req = try await request(path: "/activities/filter/week?monday=\(start)&sunday=\(end)", method: "GET")
         let (data, _) = try await URLSession.shared.data(for: req)
         return try decoder.decode([Activity].self, from: data)
     }
@@ -108,7 +107,8 @@ enum APIService {
         name: String, date: Date, type: ActivityType,
         planId: UUID? = nil, time: String? = nil, notes: String? = nil,
         distance: Double? = nil, distanceUnit: DistanceUnit? = nil,
-        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil
+        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil,
+        isPublic: Bool = false
     ) async throws -> Activity {
         struct Body: Encodable {
             let name: String
@@ -122,12 +122,14 @@ enum APIService {
             let pace: Int?
             let pace_tag: PaceTag?
             let duration: Int?
+            let is_public: Bool
         }
         let body = try JSONEncoder().encode(Body(
             name: name, date: dateFormatter.string(from: date), type: type,
             plan_id: planId, time: time, notes: notes,
             distance: distance, distance_unit: distanceUnit,
-            pace: pace, pace_tag: paceTag, duration: duration
+            pace: pace, pace_tag: paceTag, duration: duration,
+            is_public: isPublic
         ))
         let req = try await request(path: "/activities", method: "POST", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)
@@ -138,7 +140,8 @@ enum APIService {
         id: UUID, name: String, date: Date, type: ActivityType,
         planId: UUID? = nil, time: String? = nil, notes: String? = nil,
         distance: Double? = nil, distanceUnit: DistanceUnit? = nil,
-        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil
+        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil,
+        isPublic: Bool = false
     ) async throws -> Activity {
         struct Body: Encodable {
             let name: String?
@@ -152,12 +155,14 @@ enum APIService {
             let pace: Int?
             let pace_tag: PaceTag?
             let duration: Int?
+            let is_public: Bool
         }
         let body = try JSONEncoder().encode(Body(
             name: name, date: dateFormatter.string(from: date), type: type,
             plan_id: planId, time: time, notes: notes,
             distance: distance, distance_unit: distanceUnit,
-            pace: pace, pace_tag: paceTag, duration: duration
+            pace: pace, pace_tag: paceTag, duration: duration,
+            is_public: isPublic
         ))
         let req = try await request(path: "/activities/\(id)", method: "PUT", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)
@@ -180,7 +185,8 @@ enum APIService {
     static func updateProfile(
         firstName: String? = nil, lastName: String? = nil,
         defaultDistanceUnit: DistanceUnit? = nil,
-        easyPace: Int? = nil, longRunPace: Int? = nil, speedPace: Int? = nil
+        easyPace: Int? = nil, longRunPace: Int? = nil, speedPace: Int? = nil,
+        profilePhotoUrl: String? = nil
     ) async throws -> User {
         struct Body: Encodable {
             let first_name: String?
@@ -189,15 +195,47 @@ enum APIService {
             let easy_pace: Int?
             let long_run_pace: Int?
             let speed_pace: Int?
+            let profile_photo_url: String?
         }
         let body = try JSONEncoder().encode(Body(
             first_name: firstName, last_name: lastName,
             default_distance_unit: defaultDistanceUnit,
-            easy_pace: easyPace, long_run_pace: longRunPace, speed_pace: speedPace
+            easy_pace: easyPace, long_run_pace: longRunPace, speed_pace: speedPace,
+            profile_photo_url: profilePhotoUrl
         ))
         let req = try await request(path: "/users", method: "PUT", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)
         return try decoder.decode(User.self, from: data)
+    }
+
+    // Uploads JPEG image data to Firebase Storage under the current user's UID and returns the download URL
+    static func uploadProfilePhoto(_ jpegData: Data) async throws -> String {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let ref = Storage.storage().reference().child("profile-photos/\(uid)/profile.jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        // Upload the data
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            ref.putData(jpegData, metadata: metadata) { _, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        // Retrieve the public download URL
+        return try await withCheckedThrowingContinuation { continuation in
+            ref.downloadURL { url, error in
+                if let url = url {
+                    continuation.resume(returning: url.absoluteString)
+                } else {
+                    continuation.resume(throwing: error ?? URLError(.unknown))
+                }
+            }
+        }
     }
 
     // MARK: - Plans
@@ -208,19 +246,53 @@ enum APIService {
         return try decoder.decode([Plan].self, from: data)
     }
 
-    static func createPlan(
-        name: String, distance: Double, raceDate: Date, goalTimeSeconds: Int? = nil
+    static func updatePlan(
+        id: UUID, name: String, distance: String,
+        raceDate: Date, goalTimeSeconds: Int? = nil, isPublic: Bool = false,
+        planColor: String
     ) async throws -> Plan {
         struct Body: Encodable {
-            let name: String
-            let distance: Double
-            let race_date: String
+            let name: String?
+            let distance: String?
+            let race_date: String?
             let goal_time_seconds: Int?
+            let is_public: Bool
+            let plan_color: String
         }
         let body = try JSONEncoder().encode(Body(
             name: name, distance: distance,
             race_date: dateFormatter.string(from: raceDate),
-            goal_time_seconds: goalTimeSeconds
+            goal_time_seconds: goalTimeSeconds,
+            is_public: isPublic, plan_color: planColor
+        ))
+        let req = try await request(path: "/plans/\(id)", method: "PUT", bodyData: body)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        return try decoder.decode(Plan.self, from: data)
+    }
+
+    static func deletePlan(id: UUID) async throws {
+        let req = try await request(path: "/plans/\(id)", method: "DELETE")
+        _ = try await URLSession.shared.data(for: req)
+    }
+
+    static func createPlan(
+        name: String, distance: String, raceDate: Date,
+        goalTimeSeconds: Int? = nil, isPublic: Bool = false,
+        planColor: String = "#808080"
+    ) async throws -> Plan {
+        struct Body: Encodable {
+            let name: String
+            let distance: String
+            let race_date: String
+            let goal_time_seconds: Int?
+            let is_public: Bool
+            let plan_color: String
+        }
+        let body = try JSONEncoder().encode(Body(
+            name: name, distance: distance,
+            race_date: dateFormatter.string(from: raceDate),
+            goal_time_seconds: goalTimeSeconds,
+            is_public: isPublic, plan_color: planColor
         ))
         let req = try await request(path: "/plans", method: "POST", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)

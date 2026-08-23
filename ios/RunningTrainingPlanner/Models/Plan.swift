@@ -10,12 +10,13 @@ struct Plan: Codable, Identifiable, Hashable {
     let planId: UUID
     let userId: UUID
     let name: String
-    let distance: Double
+    let distance: String
     let raceDate: Date
     let goalTimeSeconds: Int?
     let createdAt: Date
-    let isPublic: Bool
-    
+    let isPublic: Bool?
+    let planColor: String
+
     enum CodingKeys: String, CodingKey {
         case planId = "plan_id"
         case userId = "user_id"
@@ -25,5 +26,6 @@ struct Plan: Codable, Identifiable, Hashable {
         case goalTimeSeconds = "goal_time_seconds"
         case createdAt = "created_at"
         case isPublic = "is_public"
+        case planColor = "plan_color"
     }
 }
