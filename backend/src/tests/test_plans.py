@@ -34,14 +34,14 @@ def test_create_plan_success():
 
         response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
         })
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         body = response.json()
         assert body["name"] == "Marathon Training"
-        assert body["distance"] == 26.2
+        assert body["distance"] == "Marathon"
         assert body["race_date"] == "2026-11-01"
         assert body["user_id"] == real_user_id
 
@@ -52,7 +52,7 @@ def test_create_plan_unauthorized():
             "/plans",
             json={
                 "name": "Marathon Training",
-                "distance": 26.2,
+                "distance": "Marathon",
                 "race_date": "2026-11-01",
             },
             headers={"Authorization": "Bearer invalid-token"},
@@ -76,7 +76,7 @@ def test_get_other_plan_public_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": True,
         })
@@ -97,7 +97,7 @@ def test_get_other_plan_public_success():
         assert response.status_code == 200
         body = response.json()
         assert body["name"] == "Marathon Training"
-        assert body["distance"] == 26.2
+        assert body["distance"] == "Marathon"
         assert body["race_date"] == "2026-11-01"
         assert body["plan_id"] == plan_id
         assert body["is_public"] == True
@@ -135,7 +135,7 @@ def test_get_my_plan_private_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(user_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": False,
         })
@@ -147,7 +147,7 @@ def test_get_my_plan_private_success():
         assert response.status_code == 200
         body = response.json()
         assert body["name"] == "Marathon Training"
-        assert body["distance"] == 26.2
+        assert body["distance"] == "Marathon"
         assert body["race_date"] == "2026-11-01"
         assert body["plan_id"] == plan_id
         assert body["user_id"] == user_id
@@ -168,7 +168,7 @@ def test_get_other_plan_not_authorized():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": False,
         })
@@ -186,7 +186,7 @@ def test_get_other_plan_not_authorized():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(other_user_id)
         response = client.get(f"/plans/{plan_id}")
 
-        assert response.status_code == 402
+        assert response.status_code == 403
         assert response.json()["detail"] == "Not authorized to view plan"
 
 
@@ -206,7 +206,7 @@ def test_update_plan_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(user_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
         })
         plan_id = create_plan_response.json()["plan_id"]
@@ -223,7 +223,7 @@ def test_update_plan_success():
         body = response.json()
         assert body["plan_id"] == plan_id
         assert body["name"] == "Marathon Training v2"
-        assert body["distance"] == 26.2
+        assert body["distance"] == "Marathon"
         assert body["goal_time_seconds"] == 10800
 
 
@@ -253,7 +253,7 @@ def test_update_plan_not_authorized():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
         })
         plan_id = create_plan_response.json()["plan_id"]
@@ -289,15 +289,14 @@ def test_delete_plan_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(user_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
         })
         plan_id = create_plan_response.json()["plan_id"]
 
         response = client.delete(f"/plans/{plan_id}")
 
-        assert response.status_code == 200
-        assert response.json()["message"] == "Plan deleted successfully"
+        assert response.status_code == 204
 
 
 def test_delete_plan_not_found():
@@ -325,13 +324,13 @@ def test_get_all_my_plans_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(user_id)
         client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": True,
         })
         client.post("/plans", json={
             "name": "5k Training",
-            "distance": 3.1,
+            "distance": "5K",
             "race_date": "2026-09-15",
             "is_public": False,
         })
@@ -362,13 +361,13 @@ def test_get_all_plans_by_user_id_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(user_id)
         client.post("/plans", json={
             "name": "Public Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": True,
         })
         client.post("/plans", json={
             "name": "Private 5k Training",
-            "distance": 3.1,
+            "distance": "5K",
             "race_date": "2026-09-15",
             "is_public": False,
         })
@@ -399,7 +398,7 @@ def test_get_all_plans_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
         client.post("/plans", json={
             "name": "Public Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": True,
         })
@@ -415,7 +414,7 @@ def test_get_all_plans_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(other_user_id)
         client.post("/plans", json={
             "name": "Private 5k Training",
-            "distance": 3.1,
+            "distance": "5K",
             "race_date": "2026-09-15",
             "is_public": False,
         })

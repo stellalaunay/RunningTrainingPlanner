@@ -39,7 +39,7 @@ def test_create_activity_success():
             "distance_unit": "km",
         })
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         body = response.json()
         assert body["name"] == "Morning Run"
         assert body["date"] == "2026-08-20"
@@ -84,7 +84,7 @@ def test_create_activity_uses_default_distance_unit():
             "distance": 3.1,
         })
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         body = response.json()
         assert body["distance_unit"] == "mi"
 
@@ -170,7 +170,7 @@ def test_get_activity_public_via_plan_success():
         app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
         create_plan_response = client.post("/plans", json={
             "name": "Marathon Training",
-            "distance": 26.2,
+            "distance": "Marathon",
             "race_date": "2026-11-01",
             "is_public": True,
         })
@@ -358,8 +358,7 @@ def test_delete_activity_success():
 
         response = client.delete(f"/activities/{activity_id}")
 
-        assert response.status_code == 200
-        assert response.json()["message"] == "Activity deleted successfully"
+        assert response.status_code == 204
 
 
 def test_delete_activity_not_found():
@@ -444,3 +443,60 @@ def test_filter_activities_by_week_success():
         names = [activity["name"] for activity in body]
         assert "In Range Run" in names
         assert "Out Of Range Run" not in names
+
+
+
+# ------------- Get All My Activities ------------
+
+
+def test_get_all_my_activities_success():
+    fake_firebase_uid = f"test-firebase-uid-{uuid4()}"
+    app.dependency_overrides[get_current_firebase_uid] = lambda: fake_firebase_uid
+
+    with TestClient(app) as client:
+        create_user_response = client.post("/users", json={
+            "first_name": "Stella",
+            "last_name": "Launay",
+        })
+        real_user_id = create_user_response.json()["user_id"]
+
+        app.dependency_overrides[get_current_user_id] = lambda: UUID(real_user_id)
+
+        client.post("/activities", json={
+            "name": "Morning Run",
+            "date": "2026-08-10",
+            "type": "Run",
+        })
+        client.post("/activities", json={
+            "name": "Strength Session",
+            "date": "2026-08-11",
+            "type": "Strength Training",
+        })
+
+        response = client.get("/activities/me")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 2
+        names = [activity["name"] for activity in body]
+        assert "Morning Run" in names
+        assert "Strength Session" in names
+
+
+def test_get_all_my_activities_empty():
+    fake_firebase_uid = f"test-firebase-uid-{uuid4()}"
+    app.dependency_overrides[get_current_firebase_uid] = lambda: fake_firebase_uid
+
+    with TestClient(app) as client:
+        create_user_response = client.post("/users", json={
+            "first_name": "Stella",
+            "last_name": "Launay",
+        })
+        real_user_id = create_user_response.json()["user_id"]
+
+        app.dependency_overrides[get_current_user_id] = lambda: UUID(real_user_id)
+
+        response = client.get("/activities/me")
+
+        assert response.status_code == 200
+        assert response.json() == []

@@ -32,7 +32,7 @@ def test_create_user_success():
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         body = response.json()
         assert body["first_name"] == "Stella"
         assert body["last_name"] == "Launay"
@@ -149,7 +149,6 @@ def test_delete_my_profile_success():
             response = client.delete("/users")
 
 
-        assert response.status_code == 200
-        assert response.json()["message"] == "User deleted successfully"
+        assert response.status_code == 204
         mock_delete.assert_called_once_with(fake_firebase_uid)
         
