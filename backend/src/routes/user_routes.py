@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends
+from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends, status
 from models.user_models import User, UserCreate, UserUpdate
 from database.postgres import get_postgres
 from auth.dependencies import get_current_user_id, get_current_firebase_uid
@@ -11,7 +11,7 @@ from uuid import UUID
 user_router = APIRouter()
 
 # ------------- Create User ------------
-@user_router.post("/users", response_model = User)
+@user_router.post("/users", response_model = User, status_code=status.HTTP_201_CREATED,)
 async def create_user(
     user: UserCreate = Body(...),
     firebase_uid: str = Depends(get_current_firebase_uid),
@@ -174,12 +174,12 @@ async def update_user(
 
 
 # ------------- Delete User ------------
-@user_router.delete("/users")
+@user_router.delete("/users", status_code=status.HTTP_204_NO_CONTENT,)
 async def delete_user(
     current_user_id: UUID = Depends(get_current_user_id),
     firebase_uid: str = Depends(get_current_firebase_uid),
     db_pool: asyncpg.Pool = Depends(get_postgres)
-) -> dict:
+) -> None:
     """
     Delete a user by its ID.
     Parameters
@@ -192,8 +192,8 @@ async def delete_user(
         Database connection pool injected by dependency.
     Returns
     -------
-    dict
-        A message indicating the user was deleted.
+    None
+        Return nothing, function exits.
     """
 
     try:
@@ -212,7 +212,6 @@ async def delete_user(
                 logger.warning(f"User with ID {current_user_id} not found for deletion")
                 raise HTTPException(status_code=404, detail="User not found for deletion")
 
-            return {"message": "User deleted successfully"}                
     except HTTPException:
         raise
     except Exception as e:

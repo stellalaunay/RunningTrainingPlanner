@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends
+from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends, status
 from models.plan_models import Plan, PlanCreate, PlanUpdate
 from database.postgres import get_postgres
 from auth.dependencies import get_current_user_id, get_current_firebase_uid
@@ -13,7 +13,7 @@ plan_router = APIRouter()
 
 # ------------- Create Plan ------------
 
-@plan_router.post("/plans", response_model = Plan)
+@plan_router.post("/plans", response_model = Plan, status_code=status.HTTP_201_CREATED,)
 async def create_plan(
     plan: PlanCreate = Body(...),
     current_user_id: UUID = Depends(get_current_user_id),
@@ -38,8 +38,8 @@ async def create_plan(
     """
 
     query = """
-        INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds, is_public)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds, is_public, plan_color)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
     """
 
@@ -52,7 +52,8 @@ async def create_plan(
                 plan.distance,
                 plan.race_date,
                 plan.goal_time_seconds,
-                plan.is_public
+                plan.is_public,
+                plan.plan_color
             )
 
             return Plan(**dict(result))
@@ -142,7 +143,7 @@ async def get_plan_by_id(
             
             if not result["is_public"] and result["user_id"] != current_user_id:
                 logger.warning(f"User ID: {current_user_id} not authorized to view plan with id {plan_id}")
-                raise HTTPException(status_code=402, detail="Not authorized to view plan")
+                raise HTTPException(status_code=403, detail="Not authorized to view plan")
                 
             return Plan(**dict(result))
     except HTTPException:
@@ -190,8 +191,9 @@ async def update_plan(
             distance = COALESCE($2, distance),
             race_date = COALESCE($3, race_date),
             goal_time_seconds = COALESCE($4, goal_time_seconds),
-            is_public = COALESCE($5, is_public)   
-        WHERE plan_id = $6
+            is_public = COALESCE($5, is_public) ,
+            plan_color = COALESCE($6, plan_color)
+        WHERE plan_id = $7
         returning *
     """
 
@@ -207,7 +209,7 @@ async def update_plan(
 
             result = await conn.fetchrow(
                 update_query,
-                plan.name, plan.distance, plan.race_date, plan.goal_time_seconds, plan.is_public, plan_id
+                plan.name, plan.distance, plan.race_date, plan.goal_time_seconds, plan.is_public, plan.plan_color, plan_id
             )
 
             return Plan(**dict(result))
@@ -220,33 +222,42 @@ async def update_plan(
     
 
 # ------------- Delete Plan ------------
-@plan_router.delete("/plans/{plan_id}")
+@plan_router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT,)
 async def delete_plan(
     plan_id: UUID = Path(...),
+    current_user_id: UUID = Depends(get_current_user_id),
     db_pool: asyncpg.Pool = Depends(get_postgres)
-) -> dict:
+) -> None:
     """
     Delete a plan by its ID.
     Parameters
     ----------
     plan_id : UUID
         The ID of the plan to delete.
+    current_user_id: UUID
+        The ID of the user currently logged in, making the request.
     db_pool : asyncpg.Pool, optional
         Database connection pool injected by dependency.
     Returns
     -------
-    dict
-        A message indicating the plan was deleted.
+    None
+        Return nothing, function exits.
     """
 
     query = "DELETE FROM plans WHERE plan_id = $1 RETURNING plan_id"
     try:
         async with db_pool.acquire() as conn:
+            existing = await conn.fetchrow("SELECT user_id FROM plans WHERE plan_id = $1", plan_id)
+            if existing is None:
+                logger.warning(f"Plan with ID {plan_id} not found for deletion")
+                raise HTTPException(status_code=404, detail="Plan not found")
+            if not is_owner(current_user_id, existing["user_id"]):
+                logger.warning(f"User ID: {current_user_id} not authorized to delete plan with id {plan_id}")
+                raise HTTPException(status_code=403, detail="Not authorized to delete this plan")
+                
             result = await conn.fetchrow(query, plan_id)
 
-            if result:
-                return {"message": "Plan deleted successfully"}
-            else:
+            if result is None:
                 logger.warning(f"Plan with ID {plan_id} not found for deletion")
                 raise HTTPException(status_code=404, detail="Plan not found for deletion")
     except HTTPException:

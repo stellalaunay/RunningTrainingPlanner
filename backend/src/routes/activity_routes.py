@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends
+from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends, status
 from models.activity_models import Activity, ActivityCreate, ActivityUpdate
 from database.postgres import get_postgres
 from auth.dependencies import get_current_user_id
@@ -14,7 +14,7 @@ activity_router = APIRouter()
 
 
 # ------------- Create Activity ------------
-@activity_router.post("/activities", response_model = Activity)
+@activity_router.post("/activities", response_model = Activity, status_code=status.HTTP_201_CREATED,)
 async def create_activity(
     activity: ActivityCreate = Body(...),
     current_user_id: UUID = Depends(get_current_user_id),
@@ -36,6 +36,8 @@ async def create_activity(
     Activity
         The newly created activity.
     """
+
+    
 
     query = """
     INSERT INTO activities (plan_id, name, date, time, type, notes, distance, distance_unit, pace, pace_tag, duration, user_id, is_public)
@@ -76,6 +78,46 @@ async def create_activity(
 
 
 
+# ------------- Get All My Activities ------------
+@activity_router.get("/activities/me", response_model = List[Activity])
+async def get_all_my_activities(
+    current_user_id: UUID = Depends(get_current_user_id),
+    db_pool: asyncpg.Pool = Depends(get_postgres),
+) -> List[Activity]:
+    """
+    Get all actvities for logged in user
+    Parameters
+    ----------
+    current_user_id: UUID
+        The ID of the user currently logged in, making the request.
+    db_pool : asyncpg.Pool, optional
+        Database connection pool injected by dependency.
+    Returns
+    -------
+    List[Activity]
+        The list of all activities for given user id.
+    """
+
+
+    query = """
+        SELECT a.*, p.name as plan_name, p.plan_color
+        FROM activities a 
+        LEFT JOIN plans p on a.plan_id = p.plan_id
+        WHERE a.user_id = $1
+    """
+
+    try:
+        async with db_pool.acquire() as conn:
+            results = await conn.fetch(query, current_user_id)
+
+
+            return [Activity(**dict(result)) for result in results]
+    except Exception as e:
+        logger.error(f"Error fetching activities for user ID {current_user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error during activities retrieval")
+
+
+
 # ------------- Get Activity ------------
 @activity_router.get("/activities/{activity_id}", response_model = Activity)
 async def get_activity_by_id(
@@ -101,10 +143,12 @@ async def get_activity_by_id(
     """
 
     query = """
-        SELECT *
-        FROM activities 
-        WHERE activity_id = $1
+        SELECT a.*, p.name as plan_name, p.plan_color
+        FROM activities a
+        LEFT JOIN plans p on a.plan_id = p.plan_id
+        WHERE a.activity_id = $1
     """
+
 
     try:
         async with db_pool.acquire() as conn:
@@ -158,18 +202,19 @@ async def update_activity(
 
     query = """
     UPDATE activities
-    SET name = COALESCE($1, name),
-        date = COALESCE($2, date),
-        time = COALESCE($3, time),
-        type = COALESCE($4, type),
-        notes = COALESCE($5, notes),
-        distance = COALESCE($6, distance),
-        distance_unit = COALESCE($7, distance_unit),
-        pace = COALESCE($8, pace),
-        pace_tag = COALESCE($9, pace_tag),
-        duration = COALESCE($10, duration),
-        is_public = COALESCE($11, is_public)
-    WHERE activity_id = $12
+    SET plan_id = $1, 
+        name = COALESCE($2, name),
+        date = COALESCE($3, date),
+        time = $4,
+        type = COALESCE($5, type),
+        notes = $6,
+        distance = $7,
+        distance_unit = $8,
+        pace = $9,
+        pace_tag = $10,
+        duration = $11,
+        is_public = COALESCE($12, is_public)
+    WHERE activity_id = $13
     returning *
     """
 
@@ -186,6 +231,7 @@ async def update_activity(
 
             result = await conn.fetchrow(
                 query,
+                activity.plan_id,
                 activity.name,
                 activity.date,
                 activity.time,
@@ -212,12 +258,12 @@ async def update_activity(
 
 
 # ------------- Delete Activity ------------
-@activity_router.delete("/activities/{activity_id}")
+@activity_router.delete("/activities/{activity_id}", status_code=status.HTTP_204_NO_CONTENT,)
 async def delete_activity(
     activity_id: UUID = Path(...),
     current_user_id: UUID = Depends(get_current_user_id),
     db_pool: asyncpg.Pool = Depends(get_postgres)
-) -> dict:
+) -> None:
     """
     Delete an activity by its ID.
     Parameters
@@ -230,8 +276,8 @@ async def delete_activity(
         Database connection pool injected by dependency.
     Returns
     -------
-    dict
-        A message indicating the activity was deleted.
+    None
+        Return nothing, function exits.
     """
 
     query = "DELETE FROM activities WHERE activity_id = $1 RETURNING activity_id"
@@ -250,7 +296,6 @@ async def delete_activity(
             if result is None:
                 logger.warning(f"Activity with ID {activity_id} not found for deletion")
                 raise HTTPException(status_code = 404, detail = "Activity not found for deletion")
-            return {"message": "Activity deleted successfully"}
     except HTTPException:
         raise                
     except Exception as e:
@@ -290,9 +335,10 @@ async def filter_activities_by_week(
     """
 
     query = """
-    SELECT *
-    FROM activities
-    WHERE user_id = $1 AND date BETWEEN $2 and $3
+    SELECT a.*, p.name as plan_name, p.plan_color
+    FROM activities a
+    LEFT JOIN plans p on a.plan_id = p.plan_id
+    WHERE a.user_id = $1 AND a.date BETWEEN $2 and $3
     """
 
     try: 
@@ -303,7 +349,3 @@ async def filter_activities_by_week(
     except Exception as e:
         logger.error(f"Error filtering activities by week: {e}")
         raise HTTPException(status_code=500, detail="Internal sever error during date filtering")
-
-
-
-
