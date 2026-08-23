@@ -22,6 +22,8 @@ class Activity(BaseModel):
     created_at: datetime
     user_id: UUID
     is_public: bool
+    plan_name: Optional[str] = None
+    plan_color: Optional[str] = None
 
 class ActivityCreate(BaseModel):
     """
