@@ -86,7 +86,7 @@ struct DayView: View {
             if !isShowing { Task { await loadActivities() } }
         }
         .navigationDestination(isPresented: $showNewActivity) {
-            CreateActivityView(initialDate: date)
+            CreateActivityView(initialDate: date, isModal: true)
         }
         .navigationDestination(isPresented: $showEditActivity) {
             if let activity = activityToEdit {

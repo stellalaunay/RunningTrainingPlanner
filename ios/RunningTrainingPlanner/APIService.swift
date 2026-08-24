@@ -28,9 +28,14 @@ enum APIService {
         return f
     }()
 
-    // Converts a Date to an "HH:mm:ss" string for sending to the backend
+    // Converts a Date to an "HH:mm" string for sending to the backend
     static func timeString(from date: Date) -> String {
         timeFormatter.string(from: date)
+    }
+
+    // Parses an "HH:mm" time string back into a Date (used to pre-fill the time picker in edit mode)
+    static func date(fromTimeString string: String) -> Date? {
+        timeFormatter.date(from: string)
     }
 
     // Handles both "yyyy-MM-dd" date-only strings (date, race_date) and ISO 8601 datetimes (created_at)

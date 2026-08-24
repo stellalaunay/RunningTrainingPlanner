@@ -38,6 +38,7 @@ struct NewPlanView: View {
 
     // When non-nil, the view is in edit mode and will update this plan instead of creating a new one
     let plan: Plan?
+    let isModal: Bool
 
     @State private var name: String
     @State private var selectedRace: RaceDistance?
@@ -61,9 +62,13 @@ struct NewPlanView: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && selectedRace != nil
     }
 
-    // True when any field differs from the saved plan — only relevant in edit mode
+    // True when any field differs from the saved plan (edit mode), or when the user has
+    // entered any data in creation mode — used to gate the discard alert.
     private var isModified: Bool {
-        guard let p = plan else { return false }
+        guard let p = plan else {
+            // In creation mode, warn if the user has typed a name or picked a distance
+            return !name.isEmpty || selectedRace != nil
+        }
         let currentGoalSeconds = goalHours * 3600 + goalMinutes * 60 + goalSeconds
         return name != p.name ||
                selectedRace != RaceDistance.from(label: p.distance) ||
@@ -79,8 +84,9 @@ struct NewPlanView: View {
     }
 
     // Creation mode: blank form. Edit mode: pre-filled from the existing plan.
-    init(plan: Plan? = nil) {
+    init(plan: Plan? = nil, isModal: Bool = false) {
         self.plan = plan
+        self.isModal = isModal
         if let p = plan {
             _name = State(initialValue: p.name)
             _selectedRace = State(initialValue: RaceDistance.from(label: p.distance))
@@ -226,15 +232,22 @@ struct NewPlanView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        // Hides the system back button when there are unsaved edits in edit mode
-        .navigationBarBackButtonHidden(isEditMode && isModified)
+        // Hides the system back button when showing our own Cancel or custom back button
+        .navigationBarBackButtonHidden((isModal && !isEditMode) || (isEditMode && isModified))
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(isEditMode ? "Edit Plan" : "New Run Plan")
                     .font(.title)
                     .fontWeight(.bold)
             }
-            if isEditMode && isModified {
+            if isModal && !isEditMode {
+                // Cancel button — shown instead of the system back button when opened modally
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        if isModified { showDiscardAlert = true } else { dismiss() }
+                    }
+                }
+            } else if isEditMode && isModified {
                 // Custom back button shown only when there are unsaved changes
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {

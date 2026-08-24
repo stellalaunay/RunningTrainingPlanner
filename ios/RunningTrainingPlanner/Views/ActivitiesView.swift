@@ -132,7 +132,7 @@ struct ActivitiesView: View {
                 if !isShowing { Task { await loadActivities() } }
             }
             .navigationDestination(isPresented: $showNewActivity) {
-                CreateActivityView()
+                CreateActivityView(isModal: true)
             }
             .navigationDestination(isPresented: $showEditActivity) {
                 if let activity = activityToEdit {

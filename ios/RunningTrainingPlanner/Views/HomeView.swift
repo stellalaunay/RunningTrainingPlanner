@@ -137,6 +137,14 @@ struct DayRowView: View {
                             .foregroundStyle(activity.type.color)
                         Text(activity.name)
                             .font(.subheadline)
+                        // Distance — only shown for runs and walks when a value is stored
+                        if (activity.type == .run || activity.type == .walk),
+                           let distance = activity.distance,
+                           let unit = activity.distanceUnit {
+                            Text("\(distance, format: .number.precision(.fractionLength(0...2))) \(unit.rawValue)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
                         if let time = activity.formattedTime {
                             Text(time)
