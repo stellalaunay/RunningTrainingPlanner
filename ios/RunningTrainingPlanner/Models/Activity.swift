@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 
 
 enum ActivityType: String, Codable, CaseIterable {
@@ -48,32 +47,60 @@ enum PaceTag: String, Codable, CaseIterable {
     }
 }
 
-@Model
-final class Activity {
-    var activityId: UUID = UUID()
-    var planId: UUID?           // FK for backend — mirrors the plan relationship below
-    var name: String
-    var date: Date
-    var time: Date?
-    var type: ActivityType
-    var notes: String?
-    var distance: Double?
-    var distanceUnit: DistanceUnit?
-    var pace: Int?
-    var paceTag: PaceTag?
-    var duration: Int?
-    var plan: Plan?             // SwiftData relationship — used for local queries
+struct Activity: Codable, Identifiable {
+    // Converts the backend time string ("19:00" or "19:00:37") to a readable format ("7:00 PM")
+    var formattedTime: String? {
+        guard let time = time else { return nil }
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        for format in ["HH:mm:ss", "HH:mm"] {
+            parser.dateFormat = format
+            if let date = parser.date(from: time) {
+                parser.dateFormat = "h:mm a"
+                parser.locale = Locale.current
+                return parser.string(from: date)
+            }
+        }
+        return time
+    }
 
-    init(name: String, date: Date, time: Date? = nil, type: ActivityType, notes: String? = nil, distance: Double? = nil, distanceUnit: DistanceUnit? = nil, pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil) {
-        self.name = name
-        self.date = date
-        self.time = time
-        self.type = type
-        self.notes = notes
-        self.distance = distance
-        self.distanceUnit = distanceUnit
-        self.pace = pace
-        self.paceTag = paceTag
-        self.duration = duration
+
+    var id: UUID { activityId }
+    let activityId: UUID
+    let planId: UUID?
+    let name: String
+    let date: Date
+    let time: String?
+    let type: ActivityType
+    let notes: String?
+    let distance: Double?
+    let distanceUnit: DistanceUnit?
+    let pace: Int?
+    let paceTag: PaceTag?
+    let duration: Int?
+    let createdAt: Date
+    let userId: UUID
+    let isPublic: Bool
+    let planName: String?
+    let planColor: String?
+
+    enum CodingKeys: String, CodingKey {
+        case activityId = "activity_id"
+        case planId = "plan_id"
+        case name
+        case date
+        case time
+        case type
+        case notes
+        case distance
+        case distanceUnit = "distance_unit"
+        case pace
+        case paceTag = "pace_tag"
+        case duration
+        case createdAt = "created_at"
+        case userId = "user_id"
+        case isPublic = "is_public"
+        case planName = "plan_name"
+        case planColor = "plan_color"
     }
 }

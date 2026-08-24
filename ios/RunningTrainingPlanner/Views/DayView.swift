@@ -8,12 +8,31 @@
 import SwiftUI
 
 struct DayView: View {
-    // let means these are passed in from HomeView, not stored locally
     let date: Date
-    let activities: [Activity]
+    // localActivities is the live list; seeded from HomeView's snapshot then refreshed on each appear
+    @State private var localActivities: [Activity]
+    @State private var loadFailed = false
     @State private var showNewActivity = false
     @State private var showEditActivity = false
     @State private var activityToEdit: Activity? = nil
+    // Set to the new date when an activity is moved to a different day; drives the toast message
+    @State private var movedToDate: Date? = nil
+
+    init(date: Date, activities: [Activity]) {
+        self.date = date
+        self._localActivities = State(initialValue: activities)
+    }
+
+    private func loadActivities() async {
+        loadFailed = false
+        do {
+            let all = try await APIService.fetchMyActivities()
+            localActivities = all.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+        } catch {
+            // Keep showing whatever was already loaded from HomeView's snapshot
+            if localActivities.isEmpty { loadFailed = true }
+        }
+    }
 
     // Formats the date into a readable string e.g. "Monday, August 3"
     private var title: String {
@@ -24,12 +43,16 @@ struct DayView: View {
         ScrollView {
             VStack(spacing: 12) {
                 // Activity list — shows a placeholder if no activities are scheduled
-                if activities.isEmpty {
+                if loadFailed {
+                    Text("Couldn't load activities. Check your connection.")
+                        .foregroundStyle(.secondary)
+                        .padding(.top)
+                } else if localActivities.isEmpty {
                     Text("No activities planned.")
                         .foregroundStyle(.secondary)
                         .padding(.top)
                 } else {
-                    ForEach(activities) { activity in
+                    ForEach(localActivities) { activity in
                         ActivityDetailCard(activity: activity, onEdit: {
                             activityToEdit = activity
                             showEditActivity = true
@@ -55,13 +78,42 @@ struct DayView: View {
                 }
             }
         }
+        .task { await loadActivities() }
+        .onChange(of: showNewActivity) { _, isShowing in
+            if !isShowing { Task { await loadActivities() } }
+        }
+        .onChange(of: showEditActivity) { _, isShowing in
+            if !isShowing { Task { await loadActivities() } }
+        }
         .navigationDestination(isPresented: $showNewActivity) {
             CreateActivityView(initialDate: date)
         }
         .navigationDestination(isPresented: $showEditActivity) {
             if let activity = activityToEdit {
-                CreateActivityView(activity: activity)
+                CreateActivityView(activity: activity, onDateChanged: { movedToDate = $0 })
             }
+        }
+        // Toast shown when an activity's date is changed during editing — fades out automatically
+        .overlay(alignment: .bottom) {
+            if let movedDate = movedToDate {
+                Text("Activity moved to \(movedDate.formatted(.dateTime.weekday(.wide).month(.wide).day()))")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.black.opacity(0.8))
+                    .clipShape(Capsule())
+                    .padding(.bottom, 20)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: movedToDate)
+        // Auto-dismiss the toast after 2.5 seconds
+        .task(id: movedToDate) {
+            guard movedToDate != nil else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            movedToDate = nil
         }
     }
 }
@@ -78,9 +130,20 @@ struct ActivityDetailCard: View {
                     .foregroundStyle(activity.type.color)
                 Text(activity.name)
                     .font(.headline)
-                // Time sits directly after the name; shown only if the user set one
-                if let time = activity.time {
-                    Text(time, format: .dateTime.hour().minute())
+                // Pace tag sits right of the name — run only
+                if activity.type == .run, let tag = activity.paceTag {
+                    Text(tag.rawValue)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(tag.color.opacity(0.85))
+                        .clipShape(Capsule())
+                }
+                // Time sits after the name/tag; shown only if the user set one
+                if let time = activity.formattedTime {
+                    Text(time)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -95,41 +158,30 @@ struct ActivityDetailCard: View {
                 }
             }
 
-            // Distance — only shown for runs and walks that have distance set
+            // Distance — only shown for runs and walks; pace value follows on the same line for runs
             if activity.type == .run || activity.type == .walk, let distance = activity.distance, let unit = activity.distanceUnit {
-                Text("Distance: \(distance, format: .number.precision(.fractionLength(2))) \(unit.rawValue)")
-                    .font(.subheadline)
-            }
-
-            // Pace tag, plan tag, and pace — only shown for runs
-            if activity.type == .run {
-                HStack(spacing: 8) {
-                    if let tag = activity.paceTag {
-                        Text(tag.rawValue)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(tag.color.opacity(0.85))
-                            .clipShape(Capsule())
-                    }
-                    if let plan = activity.plan {
-                        Text(plan.name)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.appAccent.opacity(0.85))
-                            .clipShape(Capsule())
-                    }
-                    if let pace = activity.pace, let unit = activity.distanceUnit {
+                HStack {
+                    Text("Distance: \(distance, format: .number.precision(.fractionLength(2))) \(unit.rawValue)")
+                        .font(.subheadline)
+                    if activity.type == .run, let pace = activity.pace {
+                        Spacer()
                         Text("\(pace / 60):\(String(format: "%02d", pace % 60)) min/\(unit.rawValue)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+
+            // Plan tag — shown for any activity type when linked to a plan
+            if let planName = activity.planName {
+                Text(planName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(hex: activity.planColor ?? "#808080").opacity(0.65))
+                    .clipShape(Capsule())
             }
 
             // Duration — only shown for rock climbing
@@ -160,5 +212,30 @@ struct ActivityDetailCard: View {
         case .rockClimb: return "figure.climbing"
         case .other: return "star"
         }
+    }
+}
+
+#Preview {
+    let sampleActivity = Activity(
+        activityId: UUID(),
+        planId: nil,
+        name: "Morning Run",
+        date: .now,
+        time: "7:30 AM",
+        type: .run,
+        notes: "Easy effort, felt good.",
+        distance: 8.0,
+        distanceUnit: .km,
+        pace: 330,
+        paceTag: .easy,
+        duration: nil,
+        createdAt: .now,
+        userId: UUID(),
+        isPublic: false,
+        planName: nil,
+        planColor: nil
+    )
+    NavigationStack {
+        DayView(date: .now, activities: [sampleActivity])
     }
 }

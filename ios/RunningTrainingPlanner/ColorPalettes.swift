@@ -22,6 +22,15 @@ protocol ColorPalette {
     static var accent: Color { get }
     static var cardBackground: Color { get }
     static var todayCard: Color { get }
+    // Colors available in the plan creation color picker — palettes can override these
+    static var planColorOptions: [String] { get }
+}
+
+extension ColorPalette {
+    static var planColorOptions: [String] {
+        ["#808080", "#E05252", "#E08C52", "#D4B84A", "#52A85A",
+         "#29A9B5", "#5F86A6", "#8B6BB1", "#B46A72"]
+    }
 }
 
 // MARK: - Palette 1: Teal (original)
@@ -96,4 +105,18 @@ struct PinkPalette: ColorPalette {
     static let accent         = Color(red: 0.820, green: 0.337, blue: 0.455) // deep pink for buttons/circles
     static let cardBackground = Color(red: 0.996, green: 0.922, blue: 0.937) // #FEEBEFvery light pink
     static let todayCard      = Color(red: 0.973, green: 0.737, blue: 0.796) // #F8BCCB medium pink
+}
+
+// MARK: - Hex color conversion
+extension Color {
+    // Creates a Color from a 6-digit hex string, with or without a leading #
+    init(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&int)
+        let r = Double((int >> 16) & 0xFF) / 255
+        let g = Double((int >> 8) & 0xFF) / 255
+        let b = Double(int & 0xFF) / 255
+        self.init(red: r, green: g, blue: b)
+    }
 }

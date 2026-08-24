@@ -5,14 +5,12 @@
 //  Created by Stella Launay on 7/31/26.
 //
 import SwiftUI
-import SwiftData
 
 struct CreateActivityView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    // Fetches all plans from SwiftData so the user can tag this activity to one
-    @Query private var plans: [Plan]
+    // Populated from the API once data loading is wired in
+    @State private var plans: [Plan] = []
 
     // When non-nil, the view is in edit mode and will update this activity instead of creating a new one
     let activity: Activity?
@@ -30,9 +28,13 @@ struct CreateActivityView: View {
     @State private var selectedPaceTag: PaceTag?
     @State private var showPacePicker = false
     @State private var selectedPlan: Plan?
-    @State private var duration: Int
+    @State private var duration: Int?
 
+    @State private var isPublic: Bool
     @State private var showDiscardAlert = false
+    @State private var showDeleteAlert = false
+    @State private var isSaving = false
+    @State private var errorMessage: String? = nil
 
     // Both required fields must be filled; guards against whitespace-only names.
     private var isFormValid: Bool {
@@ -49,13 +51,13 @@ struct CreateActivityView: View {
                selectedType != a.type ||
                notes != (a.notes ?? "") ||
                date != a.date ||
-               time != a.time ||
                distance != a.distance ||
                distanceUnit != (a.distanceUnit ?? .miles) ||
                currentPace != a.pace ||
                selectedPaceTag != a.paceTag ||
-               selectedPlan != a.plan ||
-               duration != (a.duration ?? 10)
+               duration != a.duration ||
+               selectedPlan?.planId != a.planId ||
+               isPublic != a.isPublic
     }
 
     // In edit mode the button is only active when there's something to save
@@ -63,21 +65,29 @@ struct CreateActivityView: View {
         isEditMode ? (isFormValid && isModified) : isFormValid
     }
 
+    // True when the view is presented as a sheet (tab bar +); shows a Cancel button instead of relying on the system back arrow
+    let isModal: Bool
+    // Called after a successful edit save when the activity's date moved to a different day
+    let onDateChanged: ((Date) -> Void)?
+
     // Creation mode: only initialDate is needed; all other fields start empty/default.
     // Edit mode: pre-fills every field from the existing activity.
-    init(initialDate: Date = .now, activity: Activity? = nil) {
+    init(initialDate: Date = .now, activity: Activity? = nil, isModal: Bool = false, onDateChanged: ((Date) -> Void)? = nil) {
+        self.isModal = isModal
+        self.onDateChanged = onDateChanged
         self.activity = activity
         if let a = activity {
             _name = State(initialValue: a.name)
             _selectedType = State(initialValue: a.type)
             _notes = State(initialValue: a.notes ?? "")
             _date = State(initialValue: a.date)
-            _time = State(initialValue: a.time)
+            _time = State(initialValue: nil) // time is stored as String in backend; not pre-filled yet
             _distance = State(initialValue: a.distance)
             _distanceUnit = State(initialValue: a.distanceUnit ?? .miles)
             _selectedPaceTag = State(initialValue: a.paceTag)
-            _selectedPlan = State(initialValue: a.plan)
-            _duration = State(initialValue: a.duration ?? 10)
+            _selectedPlan = State(initialValue: nil) // pre-filled after plans load in .task
+            _isPublic = State(initialValue: a.isPublic)
+            _duration = State(initialValue: a.duration)
             let totalPace = a.pace ?? 0
             _paceMinutes = State(initialValue: totalPace / 60)
             _paceSeconds = State(initialValue: totalPace % 60)
@@ -91,7 +101,8 @@ struct CreateActivityView: View {
             _distanceUnit = State(initialValue: .miles)
             _selectedPaceTag = State(initialValue: nil)
             _selectedPlan = State(initialValue: nil)
-            _duration = State(initialValue: 10)
+            _isPublic = State(initialValue: false)
+            _duration = State(initialValue: nil)
             _paceMinutes = State(initialValue: 0)
             _paceSeconds = State(initialValue: 0)
         }
@@ -211,10 +222,11 @@ struct CreateActivityView: View {
 
                 // Duration picker — only shown for rock climbing
                 if selectedType == .rockClimb {
-                    // stride generates values from 10 to 300 in steps of 10 (10, 20, 30 ... 300)
                     Picker("Duration", selection: $duration) {
+                        Text("Not set").tag(nil as Int?)
+                        // stride generates values from 10 to 300 in steps of 10 (10, 20, 30 ... 300)
                         ForEach(Array(stride(from: 10, through: 300, by: 10)), id: \.self) { min in
-                            Text("\(min) min").tag(min)
+                            Text("\(min) min").tag(min as Int?)
                         }
                     }
                 }
@@ -237,14 +249,28 @@ struct CreateActivityView: View {
             Section {
                 // axis: .vertical makes the field grow downward as the user types more text
                 TextField("Notes", text: $notes, axis: .vertical)
+                Toggle("Make public", isOn: $isPublic)
             }
 
         }
         .contentMargins(.top, 20, for: .scrollContent) // space between top nav bar and first field
 
-        Button(isEditMode ? "Save Changes" : "Create Activity") {
-            saveActivity()
-        }
+        if isEditMode {
+            // Delete button — only visible when editing an existing activity
+            Button("Delete Activity", role: .destructive) {
+                showDeleteAlert = true
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemRed))
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+            .padding(.bottom)
+        } else {
+            Button("Create Activity") {
+                saveActivity()
+            }
             .frame(maxWidth: .infinity)
             .padding()
             .background(canSave ? Color.appAccent : Color(.systemGray4))
@@ -252,7 +278,8 @@ struct CreateActivityView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
             .padding(.bottom)
-            .disabled(!canSave)
+            .disabled(!canSave || isSaving)
+        }
         }
         .navigationBarTitleDisplayMode(.inline)
         // Hides the system back button when there are unsaved edits, so the user can't bypass the alert
@@ -263,14 +290,32 @@ struct CreateActivityView: View {
                     .font(.title)
                     .fontWeight(.bold)
             }
-            // Custom back button shown only in edit mode when there are unsaved changes
-            if isEditMode && isModified {
+            if isModal && !isEditMode {
+                // Cancel button — only shown when opened as a sheet from the tab bar
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+            } else if isModified {
+                // Custom back button shown only in edit mode when there are unsaved changes
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         showDiscardAlert = true
                     } label: {
                         Image(systemName: "chevron.left")
                     }
+                }
+            }
+            // Checkmark save button — only visible in edit mode when there's something to save
+            if isEditMode {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        saveActivity()
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .fontWeight(.semibold)
+                    }
+                    .tint(canSave ? Color.appAccent : nil)
+                    .disabled(!canSave || isSaving)
                 }
             }
         }
@@ -280,52 +325,106 @@ struct CreateActivityView: View {
         } message: {
             Text("You have unsaved changes. Going back will discard them.")
         }
+        .alert("Delete Activity", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deleteActivity() }
+        } message: {
+            Text("This will permanently delete \"\(activity?.name ?? "this activity")\". This action cannot be undone.")
+        }
+        // Error alert — shown when save or delete fails
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        // Loads the user's plans so the plan picker appears if any exist
+        .task {
+            do {
+                plans = try await APIService.fetchMyPlans()
+                // Pre-fill the plan picker in edit mode
+                if let planId = activity?.planId {
+                    selectedPlan = plans.first { $0.planId == planId }
+                }
+            } catch {
+                // Plan picker stays hidden if fetch fails
+            }
+        }
     }
 
     private func saveActivity() {
         guard let type = selectedType else { return }
-        let pace: Int? = (paceMinutes > 0 || paceSeconds > 0) ? paceMinutes * 60 + paceSeconds : nil
-
-        if let existing = activity {
-            // Edit mode — update the existing record in place
-            existing.name = name
-            existing.date = date
-            existing.time = time
-            existing.type = type
-            existing.notes = notes.isEmpty ? nil : notes
-            existing.distance = (type == .run || type == .walk) ? distance : nil
-            existing.distanceUnit = (type == .run || type == .walk) ? distanceUnit : nil
-            existing.pace = type == .run ? pace : nil
-            existing.paceTag = type == .run ? selectedPaceTag : nil
-            existing.duration = type == .rockClimb ? duration : nil
-            existing.plan = selectedPlan
-            try? modelContext.save()
-        } else {
-            // Create mode — insert a new activity
-            let newActivity = Activity(
-                name: name,
-                date: date,
-                time: time,
-                type: type,
-                notes: notes.isEmpty ? nil : notes,
-                distance: (type == .run || type == .walk) ? distance : nil,
-                distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
-                pace: type == .run ? pace : nil,
-                paceTag: type == .run ? selectedPaceTag : nil,
-                duration: type == .rockClimb ? duration : nil
-            )
-            newActivity.plan = selectedPlan
-            modelContext.insert(newActivity)
+        let paceTotal: Int? = (paceMinutes > 0 || paceSeconds > 0) ? paceMinutes * 60 + paceSeconds : nil
+        let timeStr: String? = time.map { APIService.timeString(from: $0) }
+        let notesStr: String? = notes.isEmpty ? nil : notes
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            do {
+                if let existing = activity {
+                    // Edit mode — update the existing activity
+                    _ = try await APIService.updateActivity(
+                        id: existing.activityId,
+                        name: name,
+                        date: date,
+                        type: type,
+                        // If plans failed to load, the picker was never shown — preserve the existing plan association
+                        planId: plans.isEmpty ? activity?.planId : selectedPlan?.planId,
+                        time: timeStr,
+                        notes: notesStr,
+                        distance: distance,
+                        distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
+                        pace: type == .run ? paceTotal : nil,
+                        paceTag: type == .run ? selectedPaceTag : nil,
+                        duration: type == .rockClimb ? duration : nil,
+                        isPublic: isPublic
+                    )
+                    // Notify the caller if the activity moved to a different day
+                    if !Calendar.current.isDate(date, inSameDayAs: existing.date) {
+                        onDateChanged?(date)
+                    }
+                } else {
+                    // Create mode — post a new activity
+                    _ = try await APIService.createActivity(
+                        name: name,
+                        date: date,
+                        type: type,
+                        planId: selectedPlan?.planId,
+                        time: timeStr,
+                        notes: notesStr,
+                        distance: distance,
+                        distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
+                        pace: type == .run ? paceTotal : nil,
+                        paceTag: type == .run ? selectedPaceTag : nil,
+                        duration: type == .rockClimb ? duration : nil,
+                        isPublic: isPublic
+                    )
+                }
+                dismiss()
+            } catch {
+                errorMessage = "Could not save activity. Please check your connection and try again."
+            }
         }
-        dismiss()
+    }
+
+    private func deleteActivity() {
+        guard let existing = activity else { return }
+        Task {
+            do {
+                try await APIService.deleteActivity(id: existing.activityId)
+                dismiss()
+            } catch {
+                errorMessage = "Could not delete activity. Please check your connection and try again."
+            }
+        }
     }
 
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Activity.self, Plan.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    return NavigationStack {
+    NavigationStack {
         CreateActivityView()
     }
-    .modelContainer(container)
 }
