@@ -243,6 +243,11 @@ enum APIService {
         }
     }
 
+    static func deleteUser() async throws {
+        let req = try await request(path: "/users", method: "DELETE")
+        _ = try await URLSession.shared.data(for: req)
+    }
+
     // MARK: - Plans
 
     static func fetchMyPlans() async throws -> [Plan] {

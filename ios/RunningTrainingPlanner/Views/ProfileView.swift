@@ -7,26 +7,22 @@ import SwiftUI
 import PhotosUI
 
 struct ProfileView: View {
-    @State private var user: User? = nil
-    @State private var loadFailed = false
+    // AuthManager holds the already-fetched user so we don't re-fetch on every tab switch
+    let authManager: AuthManager
 
     var body: some View {
-        Group {
-            if let user = user {
-                ProfileFormView(user: user)
-            } else if loadFailed {
-                // Shown if the fetch errors — e.g. backend is down or user record doesn't exist yet
-                ContentUnavailableView("Profile unavailable", systemImage: "person.circle",
-                    description: Text("Could not load your profile. Check your connection and try again."))
-            } else {
-                ProgressView()
-            }
-        }
-        .task {
-            do {
-                user = try await APIService.fetchMyProfile()
-            } catch {
-                loadFailed = true
+        // NavigationStack is required for toolbar items and pushed screens to work
+        NavigationStack {
+            Group {
+                if let user = authManager.currentUser {
+                    ProfileFormView(user: user, authManager: authManager)
+                } else if authManager.profileLoadFailed {
+                    // Shown if the fetch errors — e.g. backend is down or user record doesn't exist yet
+                    ContentUnavailableView("Profile unavailable", systemImage: "person.circle",
+                        description: Text("Could not load your profile. Check your connection and try again."))
+                } else {
+                    ProgressView()
+                }
             }
         }
     }
@@ -37,6 +33,7 @@ struct ProfileFormView: View {
     // Tracks what's actually saved on the backend — updated after each successful save
     // so isModified resets correctly and the form reflects persisted values
     @State private var savedUser: User
+    let authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     // Local copies of all user fields — not written to the model until Save is tapped
@@ -62,11 +59,13 @@ struct ProfileFormView: View {
 
     @State private var showDiscardAlert = false
     @State private var showSavedBanner = false
+    @State private var showSettings = false
     @State private var errorMessage: String? = nil
 
     // Initialize all local state from the model so the form shows current saved values
-    init(user: User) {
+    init(user: User, authManager: AuthManager) {
         _savedUser = State(initialValue: user)
+        self.authManager = authManager
         _firstName = State(initialValue: user.firstName)
         _lastName = State(initialValue: user.lastName)
         _defaultDistanceUnit = State(initialValue: user.defaultDistanceUnit ?? .miles)
@@ -251,6 +250,7 @@ struct ProfileFormView: View {
                 }
             }
 
+            // Save button — disabled when nothing has changed
             Button("Save Profile") {
                 saveProfile()
             }
@@ -261,7 +261,7 @@ struct ProfileFormView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
             .padding(.bottom)
-            .disabled(!isModified) // prevents tapping when nothing has changed
+            .disabled(!isModified)
         }
         // Green banner that slides down from the top and auto-hides after 2 seconds
         .overlay(alignment: .top) {
@@ -279,7 +279,6 @@ struct ProfileFormView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showSavedBanner)
-        .navigationTitle("Profile")
         // Hides the system back button (and disables swipe-back) when there are unsaved changes
         .navigationBarBackButtonHidden(isModified)
         .toolbar {
@@ -298,6 +297,17 @@ struct ProfileFormView: View {
                     }
                 }
             }
+            // Gear icon navigates to account settings (sign out, delete account)
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+            }
+        }
+        .navigationDestination(isPresented: $showSettings) {
+            AccountSettingsView(authManager: authManager)
         }
         .alert("Unsaved Changes", isPresented: $showDiscardAlert) {
             Button("Keep Editing", role: .cancel) {}
@@ -344,6 +354,7 @@ struct ProfileFormView: View {
                     profilePhotoUrl: photoUrl
                 )
                 savedUser = updated
+                authManager.currentUser = updated  // keep the cached profile in sync
                 savedPhotoUrl = updated.profilePhotoUrl
                 profilePhotoData = nil // photo is now persisted — clear local data
                 showSavedBanner = true
@@ -356,8 +367,67 @@ struct ProfileFormView: View {
     }
 }
 
-#Preview {
-    NavigationStack {
-        ProfileView()
+// Account actions screen — reached via the gear icon on the profile page
+struct AccountSettingsView: View {
+    let authManager: AuthManager
+    @State private var showDeleteAlert = false
+    @State private var errorMessage: String? = nil
+
+    var body: some View {
+        List {
+            // Sign out — no confirmation needed, easy to undo by logging back in
+            Section {
+                Button("Sign Out") {
+                    authManager.signOut()
+                }
+                .foregroundStyle(Color.appAccent)
+            }
+
+            // Delete account — shown separately and in red to signal it's destructive
+            Section {
+                Button("Delete Account") {
+                    showDeleteAlert = true
+                }
+                .foregroundStyle(.red)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Account Settings")
+                    .font(.title)
+                    .fontWeight(.bold)
+            }
+        }
+        .alert("Delete Account", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deleteAccount() }
+        } message: {
+            Text("This will permanently delete your account and all your data. This cannot be undone.")
+        }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
+
+    private func deleteAccount() {
+        Task {
+            do {
+                try await APIService.deleteUser()
+                // Backend has deleted the Firebase account and DB row — clear local session
+                authManager.signOut()
+            } catch {
+                errorMessage = "Could not delete your account. Please check your connection and try again."
+            }
+        }
+    }
+}
+
+#Preview {
+    ProfileView(authManager: AuthManager())
 }

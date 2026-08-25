@@ -9,16 +9,44 @@ import SwiftUI
 import FirebaseCore
 import FirebaseAuth
 
-// Wraps Firebase's auth state listener and exposes a simple isLoggedIn flag to SwiftUI
+// Wraps Firebase's auth state listener and exposes a simple isLoggedIn flag to SwiftUI.
+// Also fetches and holds the current user's profile so ProfileView doesn't re-fetch on every tab switch.
 @Observable
 final class AuthManager {
     var isLoggedIn = false
+    var currentUser: User? = nil
+    var profileLoadFailed = false
     private var handle: AuthStateDidChangeListenerHandle?
 
     func startListening() {
         isLoggedIn = Auth.auth().currentUser != nil
+        if isLoggedIn {
+            fetchProfile()
+        }
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             self?.isLoggedIn = user != nil
+            if user != nil {
+                self?.fetchProfile()
+            } else {
+                self?.currentUser = nil
+                self?.profileLoadFailed = false
+            }
+        }
+    }
+
+    func signOut() {
+        try? Auth.auth().signOut()
+        currentUser = nil
+        profileLoadFailed = false
+    }
+
+    func fetchProfile() {
+        Task { @MainActor [weak self] in
+            do {
+                self?.currentUser = try await APIService.fetchMyProfile()
+            } catch {
+                self?.profileLoadFailed = true
+            }
         }
     }
 }
@@ -57,7 +85,7 @@ struct RunningTrainingPlannerApp: App {
                         ActivitiesView()
                             .tabItem { Label("Activities", systemImage: "list.bullet") }
                             .tag(3)
-                        ProfileView()
+                        ProfileView(authManager: authManager)
                             .tabItem { Label("Profile", systemImage: "person") }
                             .tag(4)
                     }
