@@ -9,17 +9,70 @@ import SwiftUI
 import FirebaseCore
 import FirebaseAuth
 
-// Wraps Firebase's auth state listener and exposes a simple isLoggedIn flag to SwiftUI
+// Wraps Firebase's auth state listener and exposes a simple isLoggedIn flag to SwiftUI.
+// Also fetches and holds the current user's profile so ProfileView doesn't re-fetch on every tab switch.
 @Observable
 final class AuthManager {
     var isLoggedIn = false
+    var currentUser: User? = nil
+    var profileLoadFailed = false
     private var handle: AuthStateDidChangeListenerHandle?
+    private let userCacheKey = "cachedUser"
 
     func startListening() {
+        // Load the cached profile immediately so the tab bar shows data before the API responds
+        currentUser = loadFromCache()
         isLoggedIn = Auth.auth().currentUser != nil
+        if isLoggedIn {
+            fetchProfile()
+        }
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             self?.isLoggedIn = user != nil
+            if user != nil {
+                self?.fetchProfile()
+            } else {
+                self?.currentUser = nil
+                self?.profileLoadFailed = false
+            }
         }
+    }
+
+    func signOut() {
+        try? Auth.auth().signOut()
+        currentUser = nil
+        profileLoadFailed = false
+        UserDefaults.standard.removeObject(forKey: userCacheKey)
+    }
+
+    func fetchProfile() {
+        Task { @MainActor [weak self] in
+            do {
+                let user = try await APIService.fetchMyProfile()
+                self?.updateCurrentUser(user)
+            } catch {
+                // Only show the error state if we have no cached data to fall back on
+                if self?.currentUser == nil {
+                    self?.profileLoadFailed = true
+                }
+            }
+        }
+    }
+
+    // Sets currentUser and persists it to UserDefaults so it survives app restarts
+    func updateCurrentUser(_ user: User) {
+        currentUser = user
+        saveToCache(user)
+    }
+
+    private func saveToCache(_ user: User) {
+        if let data = try? JSONEncoder().encode(user) {
+            UserDefaults.standard.set(data, forKey: userCacheKey)
+        }
+    }
+
+    private func loadFromCache() -> User? {
+        guard let data = UserDefaults.standard.data(forKey: userCacheKey) else { return nil }
+        return try? JSONDecoder().decode(User.self, from: data)
     }
 }
 
@@ -57,7 +110,7 @@ struct RunningTrainingPlannerApp: App {
                         ActivitiesView()
                             .tabItem { Label("Activities", systemImage: "list.bullet") }
                             .tag(3)
-                        ProfileView()
+                        ProfileView(authManager: authManager)
                             .tabItem { Label("Profile", systemImage: "person") }
                             .tag(4)
                     }

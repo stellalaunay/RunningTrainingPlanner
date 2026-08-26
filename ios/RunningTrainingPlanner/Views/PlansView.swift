@@ -5,9 +5,16 @@
 
 import SwiftUI
 
+// Controls which half of the plan list is shown
+private enum PlanSegment: String, CaseIterable {
+    case active = "Active"
+    case past = "Past"
+}
+
 struct PlansView: View {
     @State private var plans: [Plan] = []
     @State private var loadFailed = false
+    @State private var selectedSegment: PlanSegment = .active
     @State private var showNewPlan = false
     @State private var showEditPlan = false
     @State private var planToEdit: Plan? = nil
@@ -37,41 +44,46 @@ struct PlansView: View {
             .sorted { $0.raceDate > $1.raceDate }
     }
 
+    // Plans shown in the current segment
+    private var visiblePlans: [Plan] {
+        selectedSegment == .active ? activePlans : pastPlans
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if loadFailed {
-                        Text("Couldn't load plans. Check your connection.")
-                            .foregroundStyle(.secondary)
-                            .padding()
-                    } else if plans.isEmpty {
-                        Text("You have no plans.")
-                            .foregroundStyle(.secondary)
-                            .padding()
-                    }
-
-                    // Active plans section
-                    if !activePlans.isEmpty {
-                        sectionHeader("Active")
-                        ForEach(activePlans) { plan in
-                            planCard(plan)
-                                .padding(.horizontal)
-                                .padding(.vertical, 4)
-                        }
-                    }
-
-                    // Past plans section
-                    if !pastPlans.isEmpty {
-                        sectionHeader("Past")
-                        ForEach(pastPlans) { plan in
-                            planCard(plan)
-                                .padding(.horizontal)
-                                .padding(.vertical, 4)
-                        }
+            VStack(spacing: 0) {
+                // Segment picker — stays fixed below the nav bar as the list scrolls
+                Picker("", selection: $selectedSegment) {
+                    ForEach(PlanSegment.allCases, id: \.self) { segment in
+                        Text(segment.rawValue).tag(segment)
                     }
                 }
-                .padding(.vertical, 4)
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemGroupedBackground))
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if loadFailed {
+                            Text("Couldn't load plans. Check your connection.")
+                                .foregroundStyle(.secondary)
+                                .padding()
+                        } else if visiblePlans.isEmpty {
+                            Text(selectedSegment == .active ? "No active plans." : "No past plans.")
+                                .foregroundStyle(.secondary)
+                                .padding()
+                        }
+
+                        ForEach(visiblePlans) { plan in
+                            planCard(plan)
+                                .padding(.horizontal)
+                                .padding(.vertical, 4)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .background(Color(.systemGroupedBackground))
             }
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
@@ -90,7 +102,7 @@ struct PlansView: View {
                 }
             }
             .navigationDestination(isPresented: $showNewPlan) {
-                NewPlanView()
+                NewPlanView(isModal: true)
             }
             .navigationDestination(isPresented: $showEditPlan) {
                 if let plan = planToEdit {
@@ -105,19 +117,6 @@ struct PlansView: View {
                 if !isShowing { Task { await loadPlans() } }
             }
         }
-    }
-
-    // Section label — matches the sticky headers in ActivitiesView
-    @ViewBuilder
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGroupedBackground))
     }
 
     // Card with a left-side colored bar using the plan's saved color

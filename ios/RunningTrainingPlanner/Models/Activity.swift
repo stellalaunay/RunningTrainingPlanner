@@ -48,20 +48,35 @@ enum PaceTag: String, Codable, CaseIterable {
 }
 
 struct Activity: Codable, Identifiable {
-    // Converts the backend time string ("19:00" or "19:00:37") to a readable format ("7:00 PM")
+    // Parses the "HH:mm" string the backend returns
+    private static let timeParser: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    // Fallback parser for "HH:mm:ss" — the backend may include seconds in its response
+    private static let timeParserWithSeconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    // Formats a parsed time into the user's locale (e.g. "7:00 PM" or "19:00")
+    private static let timeDisplay: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        f.locale = Locale.current
+        return f
+    }()
+
+    // Converts the backend time string ("HH:mm" or "HH:mm:ss") to a readable format ("7:00 PM")
     var formattedTime: String? {
-        guard let time = time else { return nil }
-        let parser = DateFormatter()
-        parser.locale = Locale(identifier: "en_US_POSIX")
-        for format in ["HH:mm:ss", "HH:mm"] {
-            parser.dateFormat = format
-            if let date = parser.date(from: time) {
-                parser.dateFormat = "h:mm a"
-                parser.locale = Locale.current
-                return parser.string(from: date)
-            }
-        }
-        return time
+        guard let time = time,
+              let date = Activity.timeParser.date(from: time) ?? Activity.timeParserWithSeconds.date(from: time) else { return nil }
+        return Activity.timeDisplay.string(from: date)
     }
 
 

@@ -43,7 +43,15 @@ struct ActivitiesView: View {
         return filtered
             .map { date, acts in
                 let id = Self.sectionIDFormatter.string(from: date)
-                return (id: id, date: date, activities: acts.sorted { $0.date < $1.date })
+                let sorted = acts.sorted { lhs, rhs in
+                    switch (lhs.time, rhs.time) {
+                    case let (l?, r?): return l < r
+                    case (nil, _?):    return false
+                    case (_?, nil):    return true
+                    case (nil, nil):   return false
+                    }
+                }
+                return (id: id, date: date, activities: sorted)
             }
             .sorted { lhs, rhs in
                 // Upcoming: chronological (today at top); Past: reverse (most recent at top)
@@ -132,7 +140,7 @@ struct ActivitiesView: View {
                 if !isShowing { Task { await loadActivities() } }
             }
             .navigationDestination(isPresented: $showNewActivity) {
-                CreateActivityView()
+                CreateActivityView(isModal: true)
             }
             .navigationDestination(isPresented: $showEditActivity) {
                 if let activity = activityToEdit {

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, Literal
 from uuid import UUID
 from datetime import datetime, date as date_type, time as time_type
@@ -24,6 +24,12 @@ class Activity(BaseModel):
     is_public: bool
     plan_name: Optional[str] = None
     plan_color: Optional[str] = None
+
+    @field_serializer('time')
+    def serialize_time(self, value: time_type | None) -> str | None:
+        if value is None:
+            return None
+        return value.strftime('%H:%M')
 
 class ActivityCreate(BaseModel):
     """
@@ -61,3 +67,5 @@ class ActivityUpdate(BaseModel):
     pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
     duration: Optional[int] = None
     is_public: Optional[bool] = None
+
+

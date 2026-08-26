@@ -35,6 +35,7 @@ struct CreateActivityView: View {
     @State private var showDeleteAlert = false
     @State private var isSaving = false
     @State private var errorMessage: String? = nil
+    @State private var userProfile: User? = nil
 
     // Both required fields must be filled; guards against whitespace-only names.
     private var isFormValid: Bool {
@@ -43,14 +44,25 @@ struct CreateActivityView: View {
 
     private var isEditMode: Bool { activity != nil }
 
-    // True when any field differs from the saved activity — only relevant in edit mode.
+    // Only plans whose race date is today or later — past plans are excluded from the picker
+    private var activePlans: [Plan] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return plans.filter { $0.raceDate >= today }
+    }
+
+    // True when any field differs from the saved activity (edit mode), or when the user has
+    // entered any data in creation mode — used to gate the discard alert.
     private var isModified: Bool {
-        guard let a = activity else { return false }
+        guard let a = activity else {
+            // In creation mode, warn if the user has typed a name or picked a type
+            return !name.isEmpty || selectedType != nil
+        }
         let currentPace: Int? = (paceMinutes > 0 || paceSeconds > 0) ? paceMinutes * 60 + paceSeconds : nil
         return name != a.name ||
                selectedType != a.type ||
                notes != (a.notes ?? "") ||
                date != a.date ||
+               time.map { APIService.timeString(from: $0) } != a.time.flatMap { APIService.date(fromTimeString: $0) }.map { APIService.timeString(from: $0) } ||
                distance != a.distance ||
                distanceUnit != (a.distanceUnit ?? .miles) ||
                currentPace != a.pace ||
@@ -81,7 +93,7 @@ struct CreateActivityView: View {
             _selectedType = State(initialValue: a.type)
             _notes = State(initialValue: a.notes ?? "")
             _date = State(initialValue: a.date)
-            _time = State(initialValue: nil) // time is stored as String in backend; not pre-filled yet
+            _time = State(initialValue: a.time.flatMap { APIService.date(fromTimeString: $0) })
             _distance = State(initialValue: a.distance)
             _distanceUnit = State(initialValue: a.distanceUnit ?? .miles)
             _selectedPaceTag = State(initialValue: a.paceTag)
@@ -233,12 +245,12 @@ struct CreateActivityView: View {
 
             }
 
-            // Plan section — only shown if at least one plan exists
-            if !plans.isEmpty {
+            // Plan section — only shown if at least one active plan exists
+            if !activePlans.isEmpty {
                 Section {
                     Picker("Plan", selection: $selectedPlan) {
                         Text("None").tag(nil as Plan?)
-                        ForEach(plans) { plan in
+                        ForEach(activePlans) { plan in
                             Text(plan.name).tag(plan as Plan?)
                         }
                     }
@@ -282,8 +294,8 @@ struct CreateActivityView: View {
         }
         }
         .navigationBarTitleDisplayMode(.inline)
-        // Hides the system back button when there are unsaved edits, so the user can't bypass the alert
-        .navigationBarBackButtonHidden(isEditMode && isModified)
+        // Hides the system back button when showing our own Cancel or custom back button
+        .navigationBarBackButtonHidden((isModal && !isEditMode) || (isEditMode && isModified))
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(isEditMode ? "Edit Activity" : "New Activity")
@@ -291,9 +303,11 @@ struct CreateActivityView: View {
                     .fontWeight(.bold)
             }
             if isModal && !isEditMode {
-                // Cancel button — only shown when opened as a sheet from the tab bar
+                // Cancel button — shown instead of the system back button when opened modally
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        if isModified { showDiscardAlert = true } else { dismiss() }
+                    }
                 }
             } else if isModified {
                 // Custom back button shown only in edit mode when there are unsaved changes
@@ -340,17 +354,31 @@ struct CreateActivityView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        // Loads the user's plans so the plan picker appears if any exist
+        // Loads plans and user profile concurrently; each fails independently so one won't block the other
         .task {
-            do {
-                plans = try await APIService.fetchMyPlans()
-                // Pre-fill the plan picker in edit mode
+            async let plansTask = APIService.fetchMyPlans()
+            async let profileTask = APIService.fetchMyProfile()
+            if let fetchedPlans = try? await plansTask {
+                plans = fetchedPlans
                 if let planId = activity?.planId {
                     selectedPlan = plans.first { $0.planId == planId }
                 }
-            } catch {
-                // Plan picker stays hidden if fetch fails
             }
+            userProfile = try? await profileTask
+        }
+        // When the pace tag changes, pre-fill the pace wheels with the user's default for that type.
+        // If the user has no default set for that tag, resets to 0:00. Selecting None leaves pace untouched.
+        .onChange(of: selectedPaceTag) { _, newTag in
+            guard let tag = newTag else { return }
+            let defaultSeconds: Int?
+            switch tag {
+            case .easy:     defaultSeconds = userProfile?.easyPace
+            case .longRun:  defaultSeconds = userProfile?.longRunPace
+            case .speed:    defaultSeconds = userProfile?.speedPace
+            }
+            let total = defaultSeconds ?? 0
+            paceMinutes = total / 60
+            paceSeconds = total % 60
         }
     }
 
