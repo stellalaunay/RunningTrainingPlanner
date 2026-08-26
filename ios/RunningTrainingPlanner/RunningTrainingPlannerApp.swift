@@ -46,6 +46,8 @@ final class AuthManager {
 
     func fetchProfile() {
         Task { @MainActor [weak self] in
+            // Clear any previous error so the UI shows a spinner during the retry
+            self?.profileLoadFailed = false
             do {
                 let user = try await APIService.fetchMyProfile()
                 self?.updateCurrentUser(user)
@@ -122,16 +124,16 @@ struct RunningTrainingPlannerApp: App {
                             previousTab = newTab
                         }
                     }
-                    .sheet(isPresented: $showAddSheet) {
-                        NavigationStack {
-                            CreateActivityView(isModal: true)
-                        }
-                    }
-                    .onChange(of: showAddSheet) { _, isShowing in
-                        if !isShowing {
-                            // Return to the tab that was active before + was tapped, and reload HomeView
+                    .sheet(isPresented: $showAddSheet, onDismiss: {
+                        // Return to the tab that was active before + was tapped, and reload HomeView.
+                        // Deferred via Task so the tab bar updates after the sheet animation finishes.
+                        Task { @MainActor in
                             selectedTab = previousTab
                             homeRefreshTrigger += 1
+                        }
+                    }) {
+                        NavigationStack {
+                            CreateActivityView(isModal: true)
                         }
                     }
                 } else {
@@ -139,6 +141,10 @@ struct RunningTrainingPlannerApp: App {
                 }
             }
             .autocorrectionDisabled()
+            // Reset to home tab on every login so we never reopen on a stale tab after sign-out
+            .onChange(of: authManager.isLoggedIn) { _, isLoggedIn in
+                if isLoggedIn { selectedTab = 0 }
+            }
             // Start listening for sign-in/sign-out events when the app first appears
             .task { authManager.startListening() }
         }

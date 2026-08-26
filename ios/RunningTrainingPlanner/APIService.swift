@@ -8,9 +8,9 @@ import FirebaseAuth
 import FirebaseCore
 import FirebaseStorage
 
-// All backend API calls. Base URL points to the local FastAPI server.
+// All backend API calls. Base URL points to the production FastAPI server on Render.
 enum APIService {
-    static let baseURL = "http://localhost:8001"
+    static let baseURL = "https://running-planner-api-p1g6.onrender.com"
 
     // Formats a Date as "yyyy-MM-dd" for backend date fields
     private static let dateFormatter: DateFormatter = {
