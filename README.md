@@ -7,9 +7,9 @@ An iOS app for planning and logging running training, backed by a REST API built
 ## Screenshots
 
 
-| Home | Day View | Activities | Plans |
-|------|----------|------------|-------|
-| <img src="screenshots/home_screen.png" width="200"/> | <img src="screenshots/day_view.png" width="200"/> | <img src="screenshots/activities_view.png" width="200"/> | <img src="screenshots/plans_view.png" width="200"/> |
+| Home | Day View | Plans | Activities |
+|------|----------|-------|------------|
+| <img src="screenshots/home_screen.png" width="200"/> | <img src="screenshots/day_view.png" width="200"/> | <img src="screenshots/plans_view.png" width="200"/> | <img src="screenshots/activities_view.png" width="200"/> |
 
 ---
 
