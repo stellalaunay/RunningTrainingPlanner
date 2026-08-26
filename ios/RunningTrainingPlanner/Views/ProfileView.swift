@@ -390,7 +390,10 @@ struct ProfileFormView: View {
         let size = image.size
         let scale = min(maxDimension / size.width, maxDimension / size.height, 1.0)
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        // scale = 1.0 so the output pixel dimensions match newSize exactly, not 3× larger on Retina screens
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
         return resized.jpegData(compressionQuality: 0.8)
     }
@@ -420,15 +423,15 @@ struct ProfileFormView: View {
 // Account actions screen — reached via the gear icon on the profile page
 struct AccountSettingsView: View {
     let authManager: AuthManager
+    @State private var showSignOutAlert = false
     @State private var showDeleteAlert = false
     @State private var errorMessage: String? = nil
 
     var body: some View {
         List {
-            // Sign out — no confirmation needed, easy to undo by logging back in
             Section {
                 Button("Sign Out") {
-                    authManager.signOut()
+                    showSignOutAlert = true
                 }
                 .foregroundStyle(Color.appAccent)
             }
@@ -448,6 +451,12 @@ struct AccountSettingsView: View {
                     .font(.title)
                     .fontWeight(.bold)
             }
+        }
+        .alert("Sign Out", isPresented: $showSignOutAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sign Out", role: .destructive) { authManager.signOut() }
+        } message: {
+            Text("Are you sure you want to sign out?")
         }
         .alert("Delete Account", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) {}

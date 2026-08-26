@@ -23,7 +23,7 @@ async def init_postgres() -> None:
         logger.info("Initializing PostgreSQL connection pool...")
 
         conn_pool = await asyncpg.create_pool(
-            dsn = os.getenv("DATABASE_URL"), min_size = 1, max_size = 10
+            dsn = os.getenv("DATABASE_URL"), min_size = 1, max_size = 10, statement_cache_size=0
         )
         logger.info("PostgreSQL connection pool created successfully.")
 

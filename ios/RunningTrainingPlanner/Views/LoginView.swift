@@ -140,7 +140,7 @@ struct LoginView: View {
                     isSignUp.toggle()
                     errorMessage = nil
                 } label: {
-                    Text(isSignUp ? "Already have an account? Log In" : "Don't have an account? Sign Up")
+                    Text(isSignUp ? "Already have an account? Log In" : "Don't have an account? Sign up")
                         .font(.subheadline)
                         .foregroundStyle(Color.appAccent)
                 }
@@ -172,11 +172,30 @@ struct LoginView: View {
                     lastName: lastName,
                     email: email
                 )
+                // Re-fetch the profile now that the backend user exists
+                authManager.fetchProfile()
             } else {
                 try await Auth.auth().signIn(withEmail: email, password: password)
             }
-        } catch {
-            errorMessage = error.localizedDescription
+        } catch let error as NSError {
+            // Replace Firebase's raw error messages with friendlier copy
+            if let code = AuthErrorCode(rawValue: error.code) {
+                switch code {
+                case .invalidEmail:
+                    errorMessage = "Please enter a valid email address"
+                case .invalidCredential, .userNotFound, .wrongPassword:
+                    // Firebase consolidates these into invalidCredential to prevent email enumeration
+                    errorMessage = "Incorrect email or password. Please try again."
+                case .weakPassword:
+                    errorMessage = "The password must be at least 6 characters long."
+                case .tooManyRequests:
+                    errorMessage = "Too many failed attempts. Please try again later."
+                default:
+                    errorMessage = error.localizedDescription
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -192,7 +211,7 @@ struct LoginView: View {
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
             guard let idToken = result.user.idToken?.tokenString else {
-                errorMessage = "Google sign-in failed: missing token"
+                errorMessage = "Something went wrong. Please try again."
                 return
             }
             let credential = GoogleAuthProvider.credential(
@@ -209,6 +228,8 @@ struct LoginView: View {
                     lastName: profile?.familyName ?? "",
                     email: profile?.email ?? ""
                 )
+                // Re-fetch the profile now that the backend user exists
+                authManager.fetchProfile()
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -224,7 +245,7 @@ struct LoginView: View {
                   let tokenData = appleCredential.identityToken,
                   let tokenString = String(data: tokenData, encoding: .utf8),
                   let nonce = currentNonce else {
-                errorMessage = "Apple sign-in failed: missing credential"
+                errorMessage = "Something went wrong. Please try again."
                 return
             }
             let credential = OAuthProvider.appleCredential(
@@ -242,6 +263,8 @@ struct LoginView: View {
                         lastName: appleCredential.fullName?.familyName ?? "",
                         email: appleCredential.email ?? ""
                     )
+                    // Re-fetch the profile now that the backend user exists
+                    authManager.fetchProfile()
                 }
             } catch {
                 errorMessage = error.localizedDescription
