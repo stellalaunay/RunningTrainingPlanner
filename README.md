@@ -7,9 +7,9 @@ An iOS app for planning and logging running training, backed by a REST API built
 ## Screenshots
 
 
-| Home | Activity Log | Plans |
-|------|-------------|-------|
-| _screenshot_ | _screenshot_ | _screenshot_ |
+| Home | Day View | Activities | Plans |
+|------|----------|------------|-------|
+| ![Home](screenshots/home_screen.png) | ![Day View](screenshots/day_view.png) | ![Activities](screenshots/activities_view.png) | ![Plans](screenshots/plans_view.png) |
 
 ---
 
@@ -40,3 +40,5 @@ An iOS app for planning and logging running training, backed by a REST API built
 | Database | PostgreSQL (via `asyncpg`) |
 | Auth | Firebase Admin SDK (token verification) |
 | Package manager | `uv` |
+| API hosting | Render |
+| Database hosting | Supabase |
