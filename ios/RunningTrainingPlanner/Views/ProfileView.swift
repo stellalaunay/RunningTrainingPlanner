@@ -42,6 +42,7 @@ struct ProfileFormView: View {
     @State private var defaultDistanceUnit: DistanceUnit
     @State private var profilePhotoData: Data?       // newly picked photo, not yet saved
     @State private var savedPhotoUrl: String?         // URL of the photo currently saved on the backend
+    @State private var displayPhotoData: Data?        // cached photo loaded from disk on launch
     @State private var selectedPhoto: PhotosPickerItem? = nil
 
     // Pace picker visibility
@@ -110,8 +111,15 @@ struct ProfileFormView: View {
                                     .scaledToFill()
                                     .frame(width: 100, height: 100)
                                     .clipShape(Circle())
+                            } else if let data = displayPhotoData, let uiImage = UIImage(data: data) {
+                                // Cached photo from disk — no network needed
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(Circle())
                             } else if let urlStr = savedPhotoUrl, let url = URL(string: urlStr) {
-                                // Previously saved photo loaded from Firebase Storage
+                                // Network fallback for photos uploaded before caching was added
                                 AsyncImage(url: url) { image in
                                     image
                                         .resizable()
@@ -332,17 +340,22 @@ struct ProfileFormView: View {
                 }
             }
         }
+        .task {
+            // Try loading the cached photo from disk so we don't hit the network on every launch
+            displayPhotoData = Self.loadPhotoFromCache(url: savedPhotoUrl)
+        }
     }
 
     private func saveProfile() {
         Task {
             do {
-                // If a new photo was picked, upload it to Firebase Storage and get the URL
+                // If a new photo was picked, resize and compress it before uploading
                 var photoUrl: String? = nil
+                var uploadedJpeg: Data? = nil
                 if let data = profilePhotoData,
-                   let uiImage = UIImage(data: data),
-                   let jpegData = uiImage.jpegData(compressionQuality: 0.8) {
-                    photoUrl = try await APIService.uploadProfilePhoto(jpegData)
+                   let jpeg = Self.resizedJpegData(from: data) {
+                    photoUrl = try await APIService.uploadProfilePhoto(jpeg)
+                    uploadedJpeg = jpeg
                 }
                 let updated = try await APIService.updateProfile(
                     firstName: firstName,
@@ -354,9 +367,14 @@ struct ProfileFormView: View {
                     profilePhotoUrl: photoUrl
                 )
                 savedUser = updated
-                authManager.currentUser = updated  // keep the cached profile in sync
+                authManager.updateCurrentUser(updated)
                 savedPhotoUrl = updated.profilePhotoUrl
-                profilePhotoData = nil // photo is now persisted — clear local data
+                profilePhotoData = nil
+                // Cache the uploaded photo to disk so future launches don't need a network fetch
+                if let jpeg = uploadedJpeg, let url = updated.profilePhotoUrl {
+                    Self.cachePhoto(data: jpeg, url: url)
+                    displayPhotoData = jpeg
+                }
                 showSavedBanner = true
                 try? await Task.sleep(for: .seconds(2))
                 showSavedBanner = false
@@ -364,6 +382,38 @@ struct ProfileFormView: View {
                 errorMessage = "Could not save profile. Please check your connection and try again."
             }
         }
+    }
+
+    // Scales the image down to fit within maxDimension on its longest side, then JPEG-encodes it
+    private static func resizedJpegData(from data: Data, maxDimension: CGFloat = 400) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let size = image.size
+        let scale = min(maxDimension / size.width, maxDimension / size.height, 1.0)
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+        return resized.jpegData(compressionQuality: 0.8)
+    }
+
+    private static let photoCacheURL: URL? =
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("profile_photo.jpg")
+
+    private static let cachedPhotoUrlKey = "cachedProfilePhotoUrl"
+
+    // Returns photo data from disk only if the stored URL matches the current one
+    private static func loadPhotoFromCache(url: String?) -> Data? {
+        guard let url,
+              url == UserDefaults.standard.string(forKey: cachedPhotoUrlKey),
+              let cachePath = photoCacheURL else { return nil }
+        return try? Data(contentsOf: cachePath)
+    }
+
+    // Writes photo data to the Caches directory and records the source URL
+    private static func cachePhoto(data: Data, url: String) {
+        guard let cachePath = photoCacheURL else { return }
+        try? data.write(to: cachePath)
+        UserDefaults.standard.set(url, forKey: cachedPhotoUrlKey)
     }
 }
 

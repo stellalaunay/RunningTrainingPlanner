@@ -17,8 +17,11 @@ final class AuthManager {
     var currentUser: User? = nil
     var profileLoadFailed = false
     private var handle: AuthStateDidChangeListenerHandle?
+    private let userCacheKey = "cachedUser"
 
     func startListening() {
+        // Load the cached profile immediately so the tab bar shows data before the API responds
+        currentUser = loadFromCache()
         isLoggedIn = Auth.auth().currentUser != nil
         if isLoggedIn {
             fetchProfile()
@@ -38,16 +41,38 @@ final class AuthManager {
         try? Auth.auth().signOut()
         currentUser = nil
         profileLoadFailed = false
+        UserDefaults.standard.removeObject(forKey: userCacheKey)
     }
 
     func fetchProfile() {
         Task { @MainActor [weak self] in
             do {
-                self?.currentUser = try await APIService.fetchMyProfile()
+                let user = try await APIService.fetchMyProfile()
+                self?.updateCurrentUser(user)
             } catch {
-                self?.profileLoadFailed = true
+                // Only show the error state if we have no cached data to fall back on
+                if self?.currentUser == nil {
+                    self?.profileLoadFailed = true
+                }
             }
         }
+    }
+
+    // Sets currentUser and persists it to UserDefaults so it survives app restarts
+    func updateCurrentUser(_ user: User) {
+        currentUser = user
+        saveToCache(user)
+    }
+
+    private func saveToCache(_ user: User) {
+        if let data = try? JSONEncoder().encode(user) {
+            UserDefaults.standard.set(data, forKey: userCacheKey)
+        }
+    }
+
+    private func loadFromCache() -> User? {
+        guard let data = UserDefaults.standard.data(forKey: userCacheKey) else { return nil }
+        return try? JSONDecoder().decode(User.self, from: data)
     }
 }
 

@@ -52,7 +52,14 @@ struct DayView: View {
                         .foregroundStyle(.secondary)
                         .padding(.top)
                 } else {
-                    ForEach(localActivities) { activity in
+                    ForEach(localActivities.sorted { lhs, rhs in
+                        switch (lhs.time, rhs.time) {
+                        case let (l?, r?): return l < r
+                        case (nil, _?):    return false  // no time goes last
+                        case (_?, nil):    return true
+                        case (nil, nil):   return false
+                        }
+                    }) { activity in
                         ActivityDetailCard(activity: activity, onEdit: {
                             activityToEdit = activity
                             showEditActivity = true

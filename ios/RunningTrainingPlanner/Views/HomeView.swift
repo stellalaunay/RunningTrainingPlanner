@@ -131,7 +131,14 @@ struct DayRowView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 2)
             } else {
-                ForEach(activities) { activity in
+                ForEach(activities.sorted { lhs, rhs in
+                        switch (lhs.time, rhs.time) {
+                        case let (l?, r?): return l < r
+                        case (nil, _?):    return false
+                        case (_?, nil):    return true
+                        case (nil, nil):   return false
+                        }
+                    }) { activity in
                     HStack(spacing: 8) {
                         Image(systemName: iconFor(activity.type))
                             .foregroundStyle(activity.type.color)

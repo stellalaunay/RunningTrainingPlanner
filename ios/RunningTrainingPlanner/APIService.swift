@@ -28,14 +28,22 @@ enum APIService {
         return f
     }()
 
+    // Fallback parser for "HH:mm:ss" — the backend may include seconds in its response
+    private static let timeFormatterWithSeconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
     // Converts a Date to an "HH:mm" string for sending to the backend
     static func timeString(from date: Date) -> String {
         timeFormatter.string(from: date)
     }
 
-    // Parses an "HH:mm" time string back into a Date (used to pre-fill the time picker in edit mode)
+    // Parses an "HH:mm" or "HH:mm:ss" time string back into a Date (used to pre-fill the time picker in edit mode)
     static func date(fromTimeString string: String) -> Date? {
-        timeFormatter.date(from: string)
+        timeFormatter.date(from: string) ?? timeFormatterWithSeconds.date(from: string)
     }
 
     // Handles both "yyyy-MM-dd" date-only strings (date, race_date) and ISO 8601 datetimes (created_at)

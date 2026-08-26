@@ -44,6 +44,12 @@ struct CreateActivityView: View {
 
     private var isEditMode: Bool { activity != nil }
 
+    // Only plans whose race date is today or later — past plans are excluded from the picker
+    private var activePlans: [Plan] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return plans.filter { $0.raceDate >= today }
+    }
+
     // True when any field differs from the saved activity (edit mode), or when the user has
     // entered any data in creation mode — used to gate the discard alert.
     private var isModified: Bool {
@@ -56,7 +62,7 @@ struct CreateActivityView: View {
                selectedType != a.type ||
                notes != (a.notes ?? "") ||
                date != a.date ||
-               time.map { APIService.timeString(from: $0) } != a.time ||
+               time.map { APIService.timeString(from: $0) } != a.time.flatMap { APIService.date(fromTimeString: $0) }.map { APIService.timeString(from: $0) } ||
                distance != a.distance ||
                distanceUnit != (a.distanceUnit ?? .miles) ||
                currentPace != a.pace ||
@@ -239,12 +245,12 @@ struct CreateActivityView: View {
 
             }
 
-            // Plan section — only shown if at least one plan exists
-            if !plans.isEmpty {
+            // Plan section — only shown if at least one active plan exists
+            if !activePlans.isEmpty {
                 Section {
                     Picker("Plan", selection: $selectedPlan) {
                         Text("None").tag(nil as Plan?)
-                        ForEach(plans) { plan in
+                        ForEach(activePlans) { plan in
                             Text(plan.name).tag(plan as Plan?)
                         }
                     }
