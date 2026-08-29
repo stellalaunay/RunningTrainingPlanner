@@ -281,7 +281,7 @@ struct NewPlanView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { deletePlan() }
         } message: {
-            Text("This will permanently delete \"\(plan?.name ?? "this plan")\". This action cannot be undone.")
+            Text("This will permanently delete \"\(plan?.name ?? "this plan")\". Your activities won't be deleted.")
         }
         // Error alert — shown when save or delete fails
         .alert("Something went wrong", isPresented: Binding(
