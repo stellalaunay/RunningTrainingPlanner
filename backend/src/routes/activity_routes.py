@@ -2,7 +2,7 @@ from fastapi import HTTPException, Query, Path, Body, APIRouter, Depends, status
 from models.activity_models import Activity, ActivityCreate, ActivityUpdate
 from database.postgres import get_postgres
 from auth.dependencies import get_current_user_id
-from auth.authorization import is_owner, is_activity_visible
+from auth.authorization import is_owner
 from typing import List
 import asyncpg
 from loguru import logger
@@ -40,8 +40,8 @@ async def create_activity(
     
 
     query = """
-    INSERT INTO activities (plan_id, name, date, time, type, notes, distance, distance_unit, pace, pace_tag, duration, user_id, is_public)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    INSERT INTO activities (plan_id, name, date, time, type, notes, distance, distance_unit, pace, pace_tag, duration, user_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *
     """
 
@@ -68,7 +68,6 @@ async def create_activity(
                 activity.pace_tag,
                 activity.duration,
                 current_user_id,
-                activity.is_public
             )
 
             return Activity(**dict(result))
@@ -158,7 +157,7 @@ async def get_activity_by_id(
                 logger.warning(f"Activity with ID {activity_id} not found")
                 raise HTTPException(status_code=404, detail="Activity not found")
             
-            if not await is_activity_visible(dict(result), current_user_id, db_pool):
+            if not is_owner(current_user_id, result["user_id"]):
                 logger.warning(f"User ID: {current_user_id} not authorized to view activity with id {activity_id}")
                 raise HTTPException(status_code=403, detail="Not authorized to view activity")
             
@@ -213,7 +212,6 @@ async def update_activity(
         pace = $9,
         pace_tag = $10,
         duration = $11,
-        is_public = COALESCE($12, is_public)
     WHERE activity_id = $13
     returning *
     """
@@ -242,7 +240,6 @@ async def update_activity(
                 activity.pace,
                 activity.pace_tag,
                 activity.duration,
-                activity.is_public,
                 activity_id
             )
             

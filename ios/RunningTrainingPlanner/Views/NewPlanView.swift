@@ -48,7 +48,6 @@ struct NewPlanView: View {
     @State private var showGoalTimePicker: Bool
     @State private var raceDate: Date
 
-    @State private var isPublic: Bool
     @State private var selectedColor: String
     @State private var showDiscardAlert = false
     @State private var showDeleteAlert = false
@@ -74,7 +73,6 @@ struct NewPlanView: View {
                selectedRace != RaceDistance.from(label: p.distance) ||
                raceDate != p.raceDate ||
                currentGoalSeconds != (p.goalTimeSeconds ?? 0) ||
-               isPublic != (p.isPublic ?? false) ||
                selectedColor != p.planColor
     }
 
@@ -95,7 +93,6 @@ struct NewPlanView: View {
             _goalHours = State(initialValue: totalSeconds / 3600)
             _goalMinutes = State(initialValue: (totalSeconds % 3600) / 60)
             _goalSeconds = State(initialValue: totalSeconds % 60)
-            _isPublic = State(initialValue: p.isPublic ?? false)
             _selectedColor = State(initialValue: p.planColor)
             _showGoalTimePicker = State(initialValue: false)
         } else {
@@ -105,7 +102,6 @@ struct NewPlanView: View {
             _goalHours = State(initialValue: 0)
             _goalMinutes = State(initialValue: 0)
             _goalSeconds = State(initialValue: 0)
-            _isPublic = State(initialValue: false)
             _selectedColor = State(initialValue: "#808080")
             _showGoalTimePicker = State(initialValue: false)
         }
@@ -198,10 +194,6 @@ struct NewPlanView: View {
                     }
                 }
 
-                // Visibility section
-                Section {
-                    Toggle("Make public", isOn: $isPublic)
-                }
             }
             .contentMargins(.top, 20, for: .scrollContent)
 
@@ -281,7 +273,7 @@ struct NewPlanView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { deletePlan() }
         } message: {
-            Text("This will permanently delete \"\(plan?.name ?? "this plan")\". This action cannot be undone.")
+            Text("This will permanently delete \"\(plan?.name ?? "this plan")\". Your activities won't be deleted.")
         }
         // Error alert — shown when save or delete fails
         .alert("Something went wrong", isPresented: Binding(
@@ -309,7 +301,6 @@ struct NewPlanView: View {
                         distance: race.label,
                         raceDate: raceDate,
                         goalTimeSeconds: totalSeconds > 0 ? totalSeconds : nil,
-                        isPublic: isPublic,
                         planColor: selectedColor
                     )
                 } else {
@@ -319,7 +310,6 @@ struct NewPlanView: View {
                         distance: race.label,
                         raceDate: raceDate,
                         goalTimeSeconds: totalSeconds > 0 ? totalSeconds : nil,
-                        isPublic: isPublic,
                         planColor: selectedColor
                     )
                 }

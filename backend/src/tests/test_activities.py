@@ -119,90 +119,6 @@ def test_get_own_activity_success():
         assert body["user_id"] == user_id
 
 
-def test_get_other_activity_public_success():
-    fake_firebase_uid = f"test-firebase-uid-{uuid4()}"
-    app.dependency_overrides[get_current_firebase_uid] = lambda: fake_firebase_uid
-
-    with TestClient(app) as client:
-        create_owner_response = client.post("/users", json={
-            "first_name": "Stella",
-            "last_name": "Launay",
-        })
-        owner_id = create_owner_response.json()["user_id"]
-
-        app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
-        create_activity_response = client.post("/activities", json={
-            "name": "Morning Run",
-            "date": "2026-08-20",
-            "type": "Run",
-            "is_public": True,
-        })
-        activity_id = create_activity_response.json()["activity_id"]
-
-        other_firebase_uid = f"test-firebase-uid-{uuid4()}"
-        app.dependency_overrides[get_current_firebase_uid] = lambda: other_firebase_uid
-        create_other_response = client.post("/users", json={
-            "first_name": "Adrien",
-            "last_name": "Launay",
-        })
-        other_user_id = create_other_response.json()["user_id"]
-
-        app.dependency_overrides[get_current_user_id] = lambda: UUID(other_user_id)
-        response = client.get(f"/activities/{activity_id}")
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["activity_id"] == activity_id
-        assert body["is_public"] == True
-
-
-def test_get_activity_public_via_plan_success():
-    fake_firebase_uid = f"test-firebase-uid-{uuid4()}"
-    app.dependency_overrides[get_current_firebase_uid] = lambda: fake_firebase_uid
-
-    with TestClient(app) as client:
-        create_owner_response = client.post("/users", json={
-            "first_name": "Stella",
-            "last_name": "Launay",
-        })
-        owner_id = create_owner_response.json()["user_id"]
-
-        app.dependency_overrides[get_current_user_id] = lambda: UUID(owner_id)
-        create_plan_response = client.post("/plans", json={
-            "name": "Marathon Training",
-            "distance": "Marathon",
-            "race_date": "2026-11-01",
-            "is_public": True,
-        })
-        plan_id = create_plan_response.json()["plan_id"]
-
-        create_activity_response = client.post("/activities", json={
-            "plan_id": plan_id,
-            "name": "Long Run",
-            "date": "2026-08-20",
-            "type": "Run",
-            "is_public": False,
-        })
-        activity_id = create_activity_response.json()["activity_id"]
-
-        other_firebase_uid = f"test-firebase-uid-{uuid4()}"
-        app.dependency_overrides[get_current_firebase_uid] = lambda: other_firebase_uid
-        create_other_response = client.post("/users", json={
-            "first_name": "Adrien",
-            "last_name": "Launay",
-        })
-        other_user_id = create_other_response.json()["user_id"]
-
-        app.dependency_overrides[get_current_user_id] = lambda: UUID(other_user_id)
-        response = client.get(f"/activities/{activity_id}")
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["activity_id"] == activity_id
-        assert body["plan_id"] == plan_id
-        assert body["is_public"] == False
-
-
 def test_get_activity_not_found():
     with TestClient(app) as client:
         user_id = uuid4()
@@ -231,7 +147,6 @@ def test_get_other_activity_not_authorized():
             "name": "Morning Run",
             "date": "2026-08-20",
             "type": "Run",
-            "is_public": False,
         })
         activity_id = create_activity_response.json()["activity_id"]
 

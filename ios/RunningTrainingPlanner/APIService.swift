@@ -120,8 +120,7 @@ enum APIService {
         name: String, date: Date, type: ActivityType,
         planId: UUID? = nil, time: String? = nil, notes: String? = nil,
         distance: Double? = nil, distanceUnit: DistanceUnit? = nil,
-        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil,
-        isPublic: Bool = false
+        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil
     ) async throws -> Activity {
         struct Body: Encodable {
             let name: String
@@ -135,14 +134,12 @@ enum APIService {
             let pace: Int?
             let pace_tag: PaceTag?
             let duration: Int?
-            let is_public: Bool
         }
         let body = try JSONEncoder().encode(Body(
             name: name, date: dateFormatter.string(from: date), type: type,
             plan_id: planId, time: time, notes: notes,
             distance: distance, distance_unit: distanceUnit,
-            pace: pace, pace_tag: paceTag, duration: duration,
-            is_public: isPublic
+            pace: pace, pace_tag: paceTag, duration: duration
         ))
         let req = try await request(path: "/activities", method: "POST", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)
@@ -153,8 +150,7 @@ enum APIService {
         id: UUID, name: String, date: Date, type: ActivityType,
         planId: UUID? = nil, time: String? = nil, notes: String? = nil,
         distance: Double? = nil, distanceUnit: DistanceUnit? = nil,
-        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil,
-        isPublic: Bool = false
+        pace: Int? = nil, paceTag: PaceTag? = nil, duration: Int? = nil
     ) async throws -> Activity {
         struct Body: Encodable {
             let name: String?
@@ -168,14 +164,12 @@ enum APIService {
             let pace: Int?
             let pace_tag: PaceTag?
             let duration: Int?
-            let is_public: Bool
         }
         let body = try JSONEncoder().encode(Body(
             name: name, date: dateFormatter.string(from: date), type: type,
             plan_id: planId, time: time, notes: notes,
             distance: distance, distance_unit: distanceUnit,
-            pace: pace, pace_tag: paceTag, duration: duration,
-            is_public: isPublic
+            pace: pace, pace_tag: paceTag, duration: duration
         ))
         let req = try await request(path: "/activities/\(id)", method: "PUT", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)
@@ -266,7 +260,7 @@ enum APIService {
 
     static func updatePlan(
         id: UUID, name: String, distance: String,
-        raceDate: Date, goalTimeSeconds: Int? = nil, isPublic: Bool = false,
+        raceDate: Date, goalTimeSeconds: Int? = nil,
         planColor: String
     ) async throws -> Plan {
         struct Body: Encodable {
@@ -274,14 +268,13 @@ enum APIService {
             let distance: String?
             let race_date: String?
             let goal_time_seconds: Int?
-            let is_public: Bool
             let plan_color: String
         }
         let body = try JSONEncoder().encode(Body(
             name: name, distance: distance,
             race_date: dateFormatter.string(from: raceDate),
             goal_time_seconds: goalTimeSeconds,
-            is_public: isPublic, plan_color: planColor
+            plan_color: planColor
         ))
         let req = try await request(path: "/plans/\(id)", method: "PUT", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)
@@ -295,7 +288,7 @@ enum APIService {
 
     static func createPlan(
         name: String, distance: String, raceDate: Date,
-        goalTimeSeconds: Int? = nil, isPublic: Bool = false,
+        goalTimeSeconds: Int? = nil,
         planColor: String = "#808080"
     ) async throws -> Plan {
         struct Body: Encodable {
@@ -303,14 +296,13 @@ enum APIService {
             let distance: String
             let race_date: String
             let goal_time_seconds: Int?
-            let is_public: Bool
             let plan_color: String
         }
         let body = try JSONEncoder().encode(Body(
             name: name, distance: distance,
             race_date: dateFormatter.string(from: raceDate),
             goal_time_seconds: goalTimeSeconds,
-            is_public: isPublic, plan_color: planColor
+            plan_color: planColor
         ))
         let req = try await request(path: "/plans", method: "POST", bodyData: body)
         let (data, _) = try await URLSession.shared.data(for: req)

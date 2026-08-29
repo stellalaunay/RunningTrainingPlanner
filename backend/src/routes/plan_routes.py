@@ -38,7 +38,7 @@ async def create_plan(
     """
 
     query = """
-        INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds, is_public, plan_color)
+        INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds, plan_color)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
     """
@@ -52,7 +52,6 @@ async def create_plan(
                 plan.distance,
                 plan.race_date,
                 plan.goal_time_seconds,
-                plan.is_public,
                 plan.plan_color
             )
 
@@ -141,7 +140,7 @@ async def get_plan_by_id(
                 logger.warning(f"Plan with ID {plan_id} not found")
                 raise HTTPException(status_code=404, detail="Plan not found")
             
-            if not result["is_public"] and result["user_id"] != current_user_id:
+            if not is_owner(current_user_id, result["user_id"]):
                 logger.warning(f"User ID: {current_user_id} not authorized to view plan with id {plan_id}")
                 raise HTTPException(status_code=403, detail="Not authorized to view plan")
                 
@@ -191,7 +190,6 @@ async def update_plan(
             distance = COALESCE($2, distance),
             race_date = COALESCE($3, race_date),
             goal_time_seconds = COALESCE($4, goal_time_seconds),
-            is_public = COALESCE($5, is_public) ,
             plan_color = COALESCE($6, plan_color)
         WHERE plan_id = $7
         returning *
@@ -209,7 +207,7 @@ async def update_plan(
 
             result = await conn.fetchrow(
                 update_query,
-                plan.name, plan.distance, plan.race_date, plan.goal_time_seconds, plan.is_public, plan.plan_color, plan_id
+                plan.name, plan.distance, plan.race_date, plan.goal_time_seconds, plan.plan_color, plan_id
             )
 
             return Plan(**dict(result))
@@ -267,78 +265,3 @@ async def delete_plan(
         raise HTTPException(status_code=500, detail="Internal server error during plan deletion")
 
 
-# ------------- Get Plans By User ------------
-@plan_router.get("/plans/user/{resource_user_id}", response_model = List[Plan])
-async def get_all_plans_by_user_id(
-    resource_user_id: UUID = Path(...),
-    db_pool: asyncpg.Pool = Depends(get_postgres),
-) -> List[Plan]:
-    """
-    Get a list of all plans for a specific user (view).
-
-    Parameters
-    ----------
-    resource_user_id: UUID
-        The ID of the user being queried.
-    db_pool : asyncpg.Pool, optional
-        Database connection pool injected by dependency.
-    Returns
-    -------
-    List[Plan]
-        A list of all plans.
-    """
-
-    query = """
-        SELECT *
-        FROM plans
-        WHERE user_id = $1 AND is_public = TRUE
-    """
-
-    try:
-        async with db_pool.acquire() as conn:
-            results = await conn.fetch(
-            query,
-            resource_user_id
-            )
-
-            return [Plan(**dict(result)) for result in results]
-        
-    except Exception as e:
-        logger.error(f"Error fetching plans: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve plans")
-
-
-
-
-
-# ------------- Get All Plans ------------
-@plan_router.get("/plans/", response_model = List[Plan])
-async def get_all_plans(
-    db_pool: asyncpg.Pool = Depends(get_postgres),
-) -> List[Plan]:
-    """
-    Get a list of all public plans.
-
-    Parameters
-    ----------
-    db_pool : asyncpg.Pool, optional
-        Database connection pool injected by dependency.
-    Returns
-    -------
-    List[Plan]
-        A list of all plans.
-    """
-
-    query = """
-        SELECT * 
-        FROM plans 
-        WHERE is_public = TRUE
-    """
-
-    try: 
-        async with db_pool.acquire() as conn:
-            results = await conn.fetch(query)
-            return [Plan(**dict(result)) for result in results]
-    except Exception as e:
-        logger.error(f"Error fetching plans: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve plans")

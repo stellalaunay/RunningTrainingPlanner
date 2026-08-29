@@ -30,7 +30,6 @@ struct CreateActivityView: View {
     @State private var selectedPlan: Plan?
     @State private var duration: Int?
 
-    @State private var isPublic: Bool
     @State private var showDiscardAlert = false
     @State private var showDeleteAlert = false
     @State private var isSaving = false
@@ -68,8 +67,7 @@ struct CreateActivityView: View {
                currentPace != a.pace ||
                selectedPaceTag != a.paceTag ||
                duration != a.duration ||
-               selectedPlan?.planId != a.planId ||
-               isPublic != a.isPublic
+               selectedPlan?.planId != a.planId
     }
 
     // In edit mode the button is only active when there's something to save
@@ -98,7 +96,6 @@ struct CreateActivityView: View {
             _distanceUnit = State(initialValue: a.distanceUnit ?? .miles)
             _selectedPaceTag = State(initialValue: a.paceTag)
             _selectedPlan = State(initialValue: nil) // pre-filled after plans load in .task
-            _isPublic = State(initialValue: a.isPublic)
             _duration = State(initialValue: a.duration)
             let totalPace = a.pace ?? 0
             _paceMinutes = State(initialValue: totalPace / 60)
@@ -113,7 +110,6 @@ struct CreateActivityView: View {
             _distanceUnit = State(initialValue: .miles)
             _selectedPaceTag = State(initialValue: nil)
             _selectedPlan = State(initialValue: nil)
-            _isPublic = State(initialValue: false)
             _duration = State(initialValue: nil)
             _paceMinutes = State(initialValue: 0)
             _paceSeconds = State(initialValue: 0)
@@ -261,7 +257,6 @@ struct CreateActivityView: View {
             Section {
                 // axis: .vertical makes the field grow downward as the user types more text
                 TextField("Notes", text: $notes, axis: .vertical)
-                Toggle("Make public", isOn: $isPublic)
             }
 
         }
@@ -406,8 +401,7 @@ struct CreateActivityView: View {
                         distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
                         pace: type == .run ? paceTotal : nil,
                         paceTag: type == .run ? selectedPaceTag : nil,
-                        duration: type == .rockClimb ? duration : nil,
-                        isPublic: isPublic
+                        duration: type == .rockClimb ? duration : nil
                     )
                     // Notify the caller if the activity moved to a different day
                     if !Calendar.current.isDate(date, inSameDayAs: existing.date) {
@@ -426,8 +420,7 @@ struct CreateActivityView: View {
                         distanceUnit: (type == .run || type == .walk) ? distanceUnit : nil,
                         pace: type == .run ? paceTotal : nil,
                         paceTag: type == .run ? selectedPaceTag : nil,
-                        duration: type == .rockClimb ? duration : nil,
-                        isPublic: isPublic
+                        duration: type == .rockClimb ? duration : nil
                     )
                 }
                 dismiss()

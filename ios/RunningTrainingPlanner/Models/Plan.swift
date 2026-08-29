@@ -14,7 +14,6 @@ struct Plan: Codable, Identifiable, Hashable {
     let raceDate: Date
     let goalTimeSeconds: Int?
     let createdAt: Date
-    let isPublic: Bool?
     let planColor: String
 
     enum CodingKeys: String, CodingKey {
@@ -25,7 +24,6 @@ struct Plan: Codable, Identifiable, Hashable {
         case raceDate = "race_date"
         case goalTimeSeconds = "goal_time_seconds"
         case createdAt = "created_at"
-        case isPublic = "is_public"
         case planColor = "plan_color"
     }
 }

@@ -21,7 +21,6 @@ class Activity(BaseModel):
     duration: Optional[int]
     created_at: datetime
     user_id: UUID
-    is_public: bool
     plan_name: Optional[str] = None
     plan_color: Optional[str] = None
 
@@ -46,7 +45,6 @@ class ActivityCreate(BaseModel):
     pace: Optional[int] = None
     pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
     duration: Optional[int] = None
-    is_public: bool = False
 
 
 
@@ -66,6 +64,5 @@ class ActivityUpdate(BaseModel):
     pace: Optional[int] = None
     pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
     duration: Optional[int] = None
-    is_public: Optional[bool] = None
 
 
