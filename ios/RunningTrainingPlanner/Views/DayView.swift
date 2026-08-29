@@ -238,7 +238,6 @@ struct ActivityDetailCard: View {
         duration: nil,
         createdAt: .now,
         userId: UUID(),
-        isPublic: false,
         planName: nil,
         planColor: nil
     )

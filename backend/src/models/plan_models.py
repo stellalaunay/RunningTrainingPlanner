@@ -15,7 +15,6 @@ class Plan(BaseModel):
     race_date: date
     goal_time_seconds: Optional[int]
     created_at: datetime
-    is_public: bool
     plan_color: str
 
 
@@ -27,7 +26,6 @@ class PlanCreate(BaseModel):
     distance: Literal['5K', '10K', 'Half Marathon', 'Marathon']
     race_date: date 
     goal_time_seconds: Optional[int] = None
-    is_public: bool = False
     plan_color: str = '#808080'
 
 class PlanUpdate(BaseModel):
@@ -35,5 +33,4 @@ class PlanUpdate(BaseModel):
     distance: Optional[Literal['5K', '10K', 'Half Marathon', 'Marathon']] = None
     race_date: Optional[date] = None
     goal_time_seconds: Optional[int] = None
-    is_public: Optional[bool] = None
     plan_color: Optional[str] = None

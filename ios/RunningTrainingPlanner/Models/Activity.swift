@@ -95,7 +95,6 @@ struct Activity: Codable, Identifiable {
     let duration: Int?
     let createdAt: Date
     let userId: UUID
-    let isPublic: Bool
     let planName: String?
     let planColor: String?
 
@@ -114,7 +113,6 @@ struct Activity: Codable, Identifiable {
         case duration
         case createdAt = "created_at"
         case userId = "user_id"
-        case isPublic = "is_public"
         case planName = "plan_name"
         case planColor = "plan_color"
     }
