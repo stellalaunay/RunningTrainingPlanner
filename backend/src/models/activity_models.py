@@ -3,6 +3,11 @@ from typing import Optional, Literal
 from uuid import UUID
 from datetime import datetime, date as date_type, time as time_type
 
+# name: str -> required, cannot be null
+# name: Optional[str] -> required, can be null
+# name: Optional[str] = None -> not required, defaults to null if not given
+
+
 class Activity(BaseModel):
     """
     Represents the activity table in the database.
@@ -17,12 +22,13 @@ class Activity(BaseModel):
     distance: Optional[float] 
     distance_unit: Optional[Literal["km", "mi"]]
     pace: Optional[int]
-    pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]]
+    run_type: Optional[str]
     duration: Optional[int]
     created_at: datetime
     user_id: UUID
     plan_name: Optional[str] = None
     plan_color: Optional[str] = None
+    user_edited: bool
 
     @field_serializer('time')
     def serialize_time(self, value: time_type | None) -> str | None:
@@ -43,8 +49,9 @@ class ActivityCreate(BaseModel):
     distance: Optional[float] = None
     distance_unit: Optional[Literal["km", "mi"]] = None
     pace: Optional[int] = None
-    pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
+    run_type: Optional[str] = None
     duration: Optional[int] = None
+    user_edited: bool = False
 
 
 
@@ -62,7 +69,8 @@ class ActivityUpdate(BaseModel):
     distance: Optional[float] = None
     distance_unit: Optional[Literal["km", "mi"]] = None
     pace: Optional[int] = None
-    pace_tag: Optional[Literal["Easy", "Long Run", "Speed"]] = None
+    run_type: Optional[str] = None
     duration: Optional[int] = None
+    user_edited: Optional[bool] = None
 
 
