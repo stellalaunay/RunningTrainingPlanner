@@ -39,7 +39,7 @@ async def create_plan(
 
     query = """
         INSERT INTO plans (user_id, name, distance, race_date, goal_time_seconds, plan_color)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
     """
 
@@ -190,8 +190,8 @@ async def update_plan(
             distance = COALESCE($2, distance),
             race_date = COALESCE($3, race_date),
             goal_time_seconds = COALESCE($4, goal_time_seconds),
-            plan_color = COALESCE($6, plan_color)
-        WHERE plan_id = $7
+            plan_color = COALESCE($5, plan_color)
+        WHERE plan_id = $6
         returning *
     """
 

@@ -257,11 +257,14 @@ def test_delete_plan_success():
 
 def test_delete_plan_not_found():
     with TestClient(app) as client:
+        user_id = uuid4()
+        app.dependency_overrides[get_current_user_id] = lambda: user_id
+
         plan_id = uuid4()
         response = client.delete(f"/plans/{plan_id}")
 
         assert response.status_code == 404
-        assert response.json()["detail"] == "Plan not found for deletion"
+        assert response.json()["detail"] == "Plan not found"
 
 
 # ------------- Get All My Plans ------------

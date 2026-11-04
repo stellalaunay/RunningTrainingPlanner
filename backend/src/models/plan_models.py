@@ -16,7 +16,7 @@ class Plan(BaseModel):
     goal_time_seconds: Optional[int] # if None, goal is just to finish
     created_at: datetime
     plan_color: str
-    race_event_name: str
+    race_event_name: Optional[str] = None
     last_evaluated_at: Optional[datetime] = None
     last_evaluation_message: Optional[str] = None
     strava_linked_at_generation: bool
@@ -31,10 +31,10 @@ class PlanCreate(BaseModel):
     race_date: date 
     goal_time_seconds: Optional[int] = None
     plan_color: str = '#808080'
-    race_event_name: str
+    race_event_name: Optional[str] = None
     last_evaluated_at: Optional[datetime] = None
     last_evaluation_message: Optional[str] = None
-    strava_linked_at_generation: bool 
+    strava_linked_at_generation: bool = False
 
 
 class PlanUpdate(BaseModel):

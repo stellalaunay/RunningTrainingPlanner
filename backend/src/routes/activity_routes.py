@@ -40,7 +40,7 @@ async def create_activity(
     
 
     query = """
-    INSERT INTO activities (plan_id, name, date, time, type, notes, distance, distance_unit, pace, pace_tag, duration, user_id)
+    INSERT INTO activities (plan_id, name, date, time, type, notes, distance, distance_unit, pace, run_type, duration, user_id)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *
     """
@@ -65,7 +65,7 @@ async def create_activity(
                 activity.distance,
                 distance_unit,
                 activity.pace,
-                activity.pace_tag,
+                activity.run_type,
                 activity.duration,
                 current_user_id,
             )
@@ -201,18 +201,18 @@ async def update_activity(
 
     query = """
     UPDATE activities
-    SET plan_id = $1, 
+    SET plan_id = COALESCE($1, plan_id),
         name = COALESCE($2, name),
         date = COALESCE($3, date),
-        time = $4,
+        time = COALESCE($4, time),
         type = COALESCE($5, type),
-        notes = $6,
-        distance = $7,
-        distance_unit = $8,
-        pace = $9,
-        pace_tag = $10,
-        duration = $11,
-    WHERE activity_id = $13
+        notes = COALESCE($6, notes),
+        distance = COALESCE($7, distance),
+        distance_unit = COALESCE($8, distance_unit),
+        pace = COALESCE($9, pace),
+        run_type = COALESCE($10, run_type),
+        duration = COALESCE($11, duration)
+    WHERE activity_id = $12
     returning *
     """
 
@@ -238,7 +238,7 @@ async def update_activity(
                 activity.distance,
                 activity.distance_unit,
                 activity.pace,
-                activity.pace_tag,
+                activity.run_type,
                 activity.duration,
                 activity_id
             )

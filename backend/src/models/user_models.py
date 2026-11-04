@@ -55,7 +55,7 @@ class UserCreate(BaseModel):
     first_name: str
     last_name: str
     profile_photo_url: Optional[str] = None
-    default_distance_unit: Optional[Literal["km", "mi"]] = None
+    default_distance_unit: Literal["km", "mi"] = "mi"
     easy_pace: Optional[int] = None
     long_run_pace: Optional[int] = None
     speed_pace: Optional[int] = None
