@@ -47,6 +47,15 @@ async def create_activity(
 
     try:
         async with db_pool.acquire() as conn:
+            # Make sure the plan being attached belongs to the person creating the activity
+            if activity.plan_id is not None:
+                plan_row = await conn.fetchrow("SELECT user_id FROM plans WHERE plan_id = $1", activity.plan_id)
+                if plan_row is None:
+                    raise HTTPException(status_code=404, detail="Plan not found")
+                if not is_owner(current_user_id, plan_row["user_id"]):
+                    logger.warning(f"User ID: {current_user_id} not authorized to use plan with id {activity.plan_id}")
+                    raise HTTPException(status_code=403, detail="Not authorized to use this plan")
+
             distance_unit = activity.distance_unit
             if distance_unit is None:
                 user_row = await conn.fetchrow(
@@ -71,6 +80,8 @@ async def create_activity(
             )
 
             return Activity(**dict(result))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during activity creation: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during activity creation")
@@ -226,6 +237,15 @@ async def update_activity(
             if not is_owner(current_user_id, existing["user_id"]):
                 logger.warning(f"User ID: {current_user_id} not authorized to edit activity with id {activity_id}")
                 raise HTTPException(status_code=403, detail="Not authorized to edit this activity")
+
+            # If the plan is being changed, make sure the new plan belongs to the same user
+            if activity.plan_id is not None:
+                plan_row = await conn.fetchrow("SELECT user_id FROM plans WHERE plan_id = $1", activity.plan_id)
+                if plan_row is None:
+                    raise HTTPException(status_code=404, detail="Plan not found")
+                if not is_owner(current_user_id, plan_row["user_id"]):
+                    logger.warning(f"User ID: {current_user_id} not authorized to use plan with id {activity.plan_id}")
+                    raise HTTPException(status_code=403, detail="Not authorized to use this plan")
 
             result = await conn.fetchrow(
                 query,

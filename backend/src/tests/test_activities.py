@@ -250,6 +250,121 @@ def test_update_activity_not_authorized():
         assert response.json()["detail"] == "Not authorized to edit this activity"
 
 
+# ------------- Activity / Plan Ownership ------------
+
+def create_user_and_plan(client):
+    """Creates a user and a plan owned by them. Returns (user_id, plan_id) as strings."""
+    firebase_uid = f"test-firebase-uid-{uuid4()}"
+    app.dependency_overrides[get_current_firebase_uid] = lambda: firebase_uid
+    user_id = client.post("/users", json={
+        "first_name": "Stella",
+        "last_name": "Launay",
+    }).json()["user_id"]
+
+    app.dependency_overrides[get_current_user_id] = lambda: UUID(user_id)
+    plan_id = client.post("/plans", json={
+        "name": "Marathon Training",
+        "distance": "Marathon",
+        "race_date": "2026-11-01",
+    }).json()["plan_id"]
+    return user_id, plan_id
+
+
+def test_create_activity_with_own_plan_success():
+    with TestClient(app) as client:
+        user_id, plan_id = create_user_and_plan(client)
+
+        response = client.post("/activities", json={
+            "name": "Morning Run",
+            "date": "2026-08-20",
+            "type": "Run",
+            "plan_id": plan_id,
+        })
+
+        assert response.status_code == 201
+        assert response.json()["plan_id"] == plan_id
+
+
+def test_create_activity_with_other_users_plan_not_authorized():
+    with TestClient(app) as client:
+        _, plan_id = create_user_and_plan(client)
+
+        # A second user tries to attach their activity to the first user's plan
+        other_firebase_uid = f"test-firebase-uid-{uuid4()}"
+        app.dependency_overrides[get_current_firebase_uid] = lambda: other_firebase_uid
+        other_user_id = client.post("/users", json={
+            "first_name": "Adrien",
+            "last_name": "Launay",
+        }).json()["user_id"]
+
+        app.dependency_overrides[get_current_user_id] = lambda: UUID(other_user_id)
+        response = client.post("/activities", json={
+            "name": "Morning Run",
+            "date": "2026-08-20",
+            "type": "Run",
+            "plan_id": plan_id,
+        })
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Not authorized to use this plan"
+
+
+def test_create_activity_with_nonexistent_plan():
+    with TestClient(app) as client:
+        create_user_and_plan(client)
+
+        response = client.post("/activities", json={
+            "name": "Morning Run",
+            "date": "2026-08-20",
+            "type": "Run",
+            "plan_id": str(uuid4()),
+        })
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Plan not found"
+
+
+def test_update_activity_with_own_plan_success():
+    with TestClient(app) as client:
+        _, plan_id = create_user_and_plan(client)
+
+        activity_id = client.post("/activities", json={
+            "name": "Morning Run",
+            "date": "2026-08-20",
+            "type": "Run",
+        }).json()["activity_id"]
+
+        response = client.put(f"/activities/{activity_id}", json={"plan_id": plan_id})
+
+        assert response.status_code == 200
+        assert response.json()["plan_id"] == plan_id
+
+
+def test_update_activity_with_other_users_plan_not_authorized():
+    with TestClient(app) as client:
+        owner_id, plan_id = create_user_and_plan(client)
+
+        # A second user owns an activity and tries to move it onto the first user's plan
+        other_firebase_uid = f"test-firebase-uid-{uuid4()}"
+        app.dependency_overrides[get_current_firebase_uid] = lambda: other_firebase_uid
+        other_user_id = client.post("/users", json={
+            "first_name": "Adrien",
+            "last_name": "Launay",
+        }).json()["user_id"]
+
+        app.dependency_overrides[get_current_user_id] = lambda: UUID(other_user_id)
+        activity_id = client.post("/activities", json={
+            "name": "Morning Run",
+            "date": "2026-08-20",
+            "type": "Run",
+        }).json()["activity_id"]
+
+        response = client.put(f"/activities/{activity_id}", json={"plan_id": plan_id})
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Not authorized to use this plan"
+
+
 # ------------- Delete Activity ------------
 
 def test_delete_activity_success():
